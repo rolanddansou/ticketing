@@ -1,7 +1,7 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { after, before, test } from "node:test";
 import { Pool } from "pg";
@@ -84,7 +84,7 @@ test("legacy recovery preserves tickets after a failed deploy and can be rerun",
     assert.deepEqual((await client.query('SELECT id, title, "createdById" FROM "Ticket"')).rows, [
       { id, title: "Keep this ticket", createdById: null },
     ]);
-    assert.equal((await client.query('SELECT count(*)::int AS count FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')).rows[0].count, 3);
+    assert.equal((await client.query('SELECT count(*)::int AS count FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')).rows[0].count, readdirSync("prisma/migrations", { withFileTypes: true }).filter(entry => entry.isDirectory()).length);
     run("--import", "tsx", "scripts/recover-legacy-tickets.ts");
     assert.equal((await client.query('SELECT count(*)::int AS count FROM "Ticket"')).rows[0].count, 1);
   } finally {

@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 export const userIdSchema = z.uuid();
-export const userRoleSchema = z.enum(["EMPLOYEE", "AGENT", "VIEWER"]);
+export const userRoleSchema = z.enum(["SUPER_ADMIN", "EMPLOYEE", "AGENT", "VIEWER"]);
+export const userStatusSchema = z.enum(["INVITED", "ACTIVE", "DISABLED"]);
 const name = z.string().trim().min(1).max(200);
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
 
@@ -15,6 +16,7 @@ export const updateUserSchema = z.strictObject({
 const positiveInteger = z.union([z.number(), z.string().regex(/^\d+$/).transform(Number)])
   .pipe(z.number().int().positive().max(Number.MAX_SAFE_INTEGER));
 export const listUsersSchema = z.strictObject({
+  status: userStatusSchema.optional(),
   page: positiveInteger.default(1),
   limit: positiveInteger.pipe(z.number().max(100)).default(20),
   role: userRoleSchema.optional(),
@@ -26,6 +28,7 @@ export type CreateUserDto = z.input<typeof createUserSchema>;
 export type UpdateUserDto = z.input<typeof updateUserSchema>;
 export type ListUsersDto = z.input<typeof listUsersSchema>;
 export interface UserDto {
+  status: z.infer<typeof userStatusSchema>;
   id: string;
   name: string;
   email: string;

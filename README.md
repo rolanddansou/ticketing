@@ -1,5 +1,7 @@
 # Ticketing API
 
+Les fonctionnalités d'authentification sont documentées dans [AUTH.md](AUTH.md).
+
 API Express 5, TypeScript strict et Prisma 7, sans Docker, avec un module de tickets de support.
 
 Le projet fournit la persistance et les contrats nécessaires pour créer, modifier,

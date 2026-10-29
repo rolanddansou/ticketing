@@ -4,7 +4,7 @@ import type { CreateUserDto, UpdateUserDto, ListUsersDto, UserDto, UserListingDt
 import { UserNotFoundError, UserEmailAlreadyExistsError, type UserRepository } from "./user.repository.js";
 
 function toDto(user: User): UserDto {
-  return { id: user.id, name: user.name, email: user.email, role: user.role, createdAt: user.createdAt.toISOString() };
+  return { id: user.id, name: user.name, email: user.email, role: user.role, status: user.status, createdAt: user.createdAt.toISOString() };
 }
 
 function rethrow(error: unknown, id?: string): never {
@@ -34,8 +34,8 @@ export class PrismaUserRepository implements UserRepository {
     return user ? toDto(user) : null;
   }
   async listing(input: ListUsersDto): Promise<UserListingDto> {
-    const { page, limit, role } = listUsersSchema.parse(input);
-    const where = { role };
+    const { page, limit, role, status } = listUsersSchema.parse(input);
+    const where = { role, status };
     const [total, users] = await this.client.$transaction([
       this.client.user.count({ where }),
       this.client.user.findMany({ where, skip: (page - 1) * limit, take: limit,

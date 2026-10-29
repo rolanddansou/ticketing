@@ -21,9 +21,16 @@ enum TicketPriority {
 }
 
 enum UserRole {
+  SUPER_ADMIN
   EMPLOYEE
   AGENT
   VIEWER
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
 }
 
 model User {
@@ -31,6 +38,8 @@ model User {
   name            String   @db.VarChar(200)
   email           String   @unique @db.VarChar(254)
   role            UserRole @default(EMPLOYEE)
+  status          UserStatus @default(INVITED)
+  passwordHash    String?
   createdAt       DateTime @default(now())
   createdTickets  Ticket[] @relation("TicketCreator")
   assignedTickets Ticket[] @relation("TicketAssignee")
