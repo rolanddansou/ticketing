@@ -1,5 +1,15 @@
 # Authentification
 
+## Mot de passe oublié
+
+POST /auth/forgot-password avec email retourne toujours le même message 202,
+compte inconnu ou inactif inclus. Seuls les comptes ACTIVE reçoivent un email.
+Le lien FRONTEND_URL/reset-password#token=... expire après 30 minutes ; le frontend
+POST /auth/reset-password avec token/password/confirmPassword. Succès : 204,
+cookie effacé et toutes les sessions/liens révoqués ; reconnexion requise.
+Un nouveau lien invalide le précédent. Les jetons invitation/reset ne sont pas
+interchangeables. Limites IP : forgot 5/15 min, reset et activation 10/15 min.
+
 ## Invitations
 
 POST /users/invitations (SUPER_ADMIN) accepte name/email/role et retourne 202.

@@ -6,12 +6,13 @@ import { authenticate } from "../middlewares/authenticate.js";
 import { csrf, clearRefresh, setRefresh, readRefresh, defaultBrowser, type BrowserConfig } from "../middlewares/browser-security.js";
 import { unauthorized } from "../modules/auth/errors.js";
 import type { InvitationService } from "../modules/auth/invitation.service.js";
+import type { PasswordRecoveryService } from "../modules/auth/password-recovery.service.js";
 
 export const limitRequests = (limit: number, windowMs: number) => rateLimit({
   windowMs, limit, standardHeaders: "draft-8", legacyHeaders: false,
   message: { error: { message: "Trop de tentatives, réessayez plus tard" } },
 });
-export function createAuthRouter(service: AuthService, browser: BrowserConfig = defaultBrowser, invitations?: InvitationService): Router {
+export function createAuthRouter(service: AuthService, browser: BrowserConfig = defaultBrowser, invitations?: InvitationService, recovery?: PasswordRecoveryService): Router {
   const router = Router();
   router.use((_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
   router.post("/login", limitRequests(10, 60_000), async (req, res) => {
@@ -39,5 +40,14 @@ export function createAuthRouter(service: AuthService, browser: BrowserConfig = 
   if (invitations) router.post("/accept-invitation", limitRequests(10, 15 * 60000), async (req, res) => {
     await invitations.accept(req.body); res.sendStatus(204);
   });
+  if (recovery) {
+    router.post("/forgot-password", limitRequests(5, 15 * 60000), async (req, res) => {
+      await recovery.forgot(req.body);
+      res.status(202).json({ message: "Si ce compte est actif, un email de réinitialisation sera envoyé" });
+    });
+    router.post("/reset-password", limitRequests(10, 15 * 60000), async (req, res) => {
+      await recovery.reset(req.body); clearRefresh(res, browser); res.sendStatus(204);
+    });
+  }
   return router;
 }

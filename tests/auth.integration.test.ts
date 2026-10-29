@@ -19,6 +19,7 @@ import { EmailEncryption } from "../src/modules/email/encryption.js";
 import { FakeEmailProvider } from "../src/modules/email/email-provider.js";
 import { PrismaOutboxRepository } from "../src/modules/email/prisma-outbox.repository.js";
 import { OutboxWorker } from "../src/modules/email/worker.js";
+import { PasswordRecoveryService } from "../src/modules/auth/password-recovery.service.js";
 let db: Awaited<ReturnType<typeof testDatabase>>;
 before(async () => { db = await testDatabase(); });
 after(async () => { await db?.close(); });
@@ -170,4 +171,43 @@ test("invitation is transactional, resend invalidates old links, activation is s
   const expiredToken = new URLSearchParams(new URL(encryption.decrypt(mail.payload!).text.split(" : ")[1]).hash.slice(1)).get("token")!;
   await db.prisma.actionToken.updateMany({ where: { userId: expired.id }, data: { expiresAt: new Date(0) } });
   await assert.rejects(invitations.accept({ token: expiredToken, password, confirmPassword: password }));
+});
+
+test("forgot/reset is generic, single-use, expiring and revokes all sessions", async () => {
+  const hasher = new Argon2PasswordHasher(); const encryption = new EmailEncryption("ab".repeat(32));
+  const repository = new PrismaActionRepository(db.prisma);
+  const recovery = new PasswordRecoveryService(repository, hasher, encryption, "https://frontend.example.com");
+  const invitations = new InvitationService(repository, hasher, encryption, "https://frontend.example.com");
+  const auth = new AuthService(new PrismaAuthRepository(db.prisma), hasher, new JwtTokens(jwtConfig));
+  const password = "Original reset password 123"; const nextPassword = "New reset password 456";
+  const user = await db.prisma.user.create({ data: { name: "Reset", email: "reset@example.com", status: "ACTIVE", passwordHash: await hasher.hash(password) } });
+  const session = await auth.login(user.email, password);
+  const getToken = async () => {
+    const mail = await db.prisma.emailOutbox.findFirstOrThrow({ where: { payload: { not: null }, actionToken: { userId: user.id, consumedAt: null } } });
+    return new URLSearchParams(new URL(encryption.decrypt(mail.payload!).text.split(" : ")[1]).hash.slice(1)).get("token")!;
+  };
+  const count = await db.prisma.emailOutbox.count();
+  await recovery.forgot({ email: "unknown@example.com" });
+  await recovery.forgot({ email: "employee@example.com" });
+  assert.equal(await db.prisma.emailOutbox.count(), count);
+  await recovery.forgot({ email: user.email }); const old = await getToken();
+  await assert.rejects(invitations.accept({ token: old, password: nextPassword, confirmPassword: nextPassword }));
+  await recovery.forgot({ email: user.email }); const token = await getToken();
+  await assert.rejects(recovery.reset({ token: old, password: nextPassword, confirmPassword: nextPassword }));
+  await db.prisma.actionToken.updateMany({ where: { userId: user.id, consumedAt: null }, data: { expiresAt: new Date(0) } });
+  await assert.rejects(recovery.reset({ token, password: nextPassword, confirmPassword: nextPassword }));
+  await recovery.forgot({ email: user.email }); const current = await getToken();
+  const results = await Promise.allSettled([recovery.reset({ token: current, password: nextPassword, confirmPassword: nextPassword }), recovery.reset({ token: current, password: nextPassword, confirmPassword: nextPassword })]);
+  assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
+  await assert.rejects(auth.authenticate(session.accessToken)); await assert.rejects(auth.refresh(session.refreshToken));
+  await assert.rejects(auth.login(user.email, password)); await auth.login(user.email, nextPassword);
+  const app = express(); app.use(express.json()); app.use("/auth", createAuthRouter(auth, undefined, invitations, recovery)); app.use(errorHandler);
+  const server = app.listen(0, "127.0.0.1"); await new Promise<void>(resolve => server.once("listening", resolve));
+  const address = server.address(); assert.ok(address && typeof address !== "string");
+  try {
+    const call = (email: string) => fetch(`http://127.0.0.1:${address.port}/auth/forgot-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+    const existing = await call(user.email), missing = await call("nobody@example.com");
+    assert.equal(existing.status, 202); assert.equal(missing.status, 202);
+    assert.deepEqual(await existing.json(), await missing.json());
+  } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });

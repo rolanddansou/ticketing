@@ -5,3 +5,7 @@ export interface InvitationRepository {
   resend(actorId: string, id: string, createDelivery: (email: string) => ActionDelivery): Promise<void>;
   acceptInvitation(hash: string, passwordHash: string): Promise<void>;
 }
+export interface PasswordRecoveryRepository {
+  requestReset(email: string, createDelivery: (email: string) => ActionDelivery): Promise<void>;
+  resetPassword(hash: string, passwordHash: string): Promise<void>;
+}
