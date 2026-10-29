@@ -1,5 +1,12 @@
 # Authentification
 
+## Premier administrateur
+
+Après les migrations : `npm run auth:bootstrap-admin`. Un terminal interactif est
+requis ; les mots de passe sont saisis sans affichage. La commande refuse toute
+relance dès qu'un SUPER_ADMIN existe. Un verrou transactionnel protège les appels
+concurrents. Aucun secret n'est transmis comme argument ou écrit dans les logs.
+
 ## Comptes
 
 Les utilisateurs existants deviennent INVITED, sans mot de passe, en conservant leurs
