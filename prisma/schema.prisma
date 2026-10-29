@@ -1,6 +1,6 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
   importFileExtension = "js"
 }
 
@@ -20,12 +20,39 @@ enum TicketPriority {
   HIGH
 }
 
+enum UserRole {
+  EMPLOYEE
+  AGENT
+  VIEWER
+}
+
+model User {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String   @db.VarChar(200)
+  email           String   @unique @db.VarChar(254)
+  role            UserRole @default(EMPLOYEE)
+  createdAt       DateTime @default(now())
+  createdTickets  Ticket[] @relation("TicketCreator")
+  assignedTickets Ticket[] @relation("TicketAssignee")
+  resolvedTickets Ticket[] @relation("TicketResolver")
+}
+
 model Ticket {
-  id          String         @id @default(uuid()) @db.Uuid
-  title       String         @db.VarChar(200)
-  description String?
-  status      TicketStatus   @default(OPEN)
-  priority    TicketPriority @default(MEDIUM)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id           String         @id @default(uuid()) @db.Uuid
+  title        String         @db.VarChar(200)
+  description  String?
+  status       TicketStatus   @default(OPEN)
+  priority     TicketPriority @default(MEDIUM)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  createdById  String?        @db.Uuid
+  assignedToId String?        @db.Uuid
+  resolveById  String?        @db.Uuid
+  createdBy    User?          @relation("TicketCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  assignedTo   User?          @relation("TicketAssignee", fields: [assignedToId], references: [id], onDelete: Restrict)
+  resolveBy    User?          @relation("TicketResolver", fields: [resolveById], references: [id], onDelete: Restrict)
+
+  @@index([createdById])
+  @@index([assignedToId])
+  @@index([resolveById])
 }

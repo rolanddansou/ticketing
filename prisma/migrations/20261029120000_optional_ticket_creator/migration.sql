@@ -1,0 +1,1 @@
+ALTER TABLE "Ticket" ALTER COLUMN "createdById" DROP NOT NULL;

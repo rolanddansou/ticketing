@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createTicketSchema, updateTicketSchema, listTicketsSchema, ticketIdSchema } from "../src/modules/tickets/ticket.dto.js";
+const createdById = "00000000-0000-4000-8000-000000000001";
 
 test("create trims title and applies defaults", () => {
-  assert.deepEqual(createTicketSchema.parse({ title: "  Support  " }), {
+  assert.deepEqual(createTicketSchema.parse({ title: "  Support  ", createdById }), {
+    createdById, assignedToId: null, resolveById: null,
     title: "Support", description: null, status: "OPEN", priority: "MEDIUM",
   });
 });
@@ -13,7 +15,7 @@ test("create rejects invalid fields and protected properties", () => {
     {}, { title: " " }, { title: "x".repeat(201) }, { title: null },
     { title: "OK", status: "INVALID" }, { title: "OK", priority: "INVALID" },
     ...["id", "createdAt", "updatedAt", "unknown"].map(key => ({ title: "OK", [key]: "value" })),
-  ]) assert.equal(createTicketSchema.safeParse(input).success, false);
+  ]) assert.equal(createTicketSchema.safeParse({ createdById, ...input }).success, false);
 });
 
 test("update is partial, supports null and rejects empty or unknown changes", () => {
@@ -37,4 +39,15 @@ test("listing defaults, integer strings and filters", () => {
 test("ids must be UUIDs", () => {
   assert.equal(ticketIdSchema.safeParse("not-an-id").success, false);
   assert.equal(ticketIdSchema.safeParse("00000000-0000-4000-8000-000000000001").success, true);
+});
+
+test("ticket user references are validated and creator is immutable", () => {
+  assert.equal(createTicketSchema.parse({ title: "X" }).createdById, null);
+  assert.equal(createTicketSchema.parse({ title: "X", createdById: null }).createdById, null);
+  for (const key of ["createdById", "assignedToId", "resolveById"]) {
+    assert.equal(createTicketSchema.safeParse({ title: "X", createdById, [key]: "bad" }).success, false);
+    assert.equal(listTicketsSchema.safeParse({ [key]: "bad" }).success, false);
+  }
+  assert.equal(updateTicketSchema.safeParse({ createdById }).success, false);
+  assert.deepEqual(updateTicketSchema.parse({ assignedToId: null, resolveById: createdById }), { assignedToId: null, resolveById: createdById });
 });

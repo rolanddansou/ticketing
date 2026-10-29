@@ -1,11 +1,14 @@
 import { Prisma, type PrismaClient, type Ticket } from "../../generated/prisma/client.js";
 import { createTicketSchema, updateTicketSchema, listTicketsSchema, ticketIdSchema } from "./ticket.dto.js";
 import type { CreateTicketDto, UpdateTicketDto, ListTicketsDto, TicketDto, TicketListingDto } from "./ticket.dto.js";
-import { TicketNotFoundError, type TicketRepository } from "./ticket.repository.js";
+import { TicketNotFoundError, TicketUserReferenceError, type TicketRepository } from "./ticket.repository.js";
 
 function toDto(ticket: Ticket): TicketDto {
   return {
     id: ticket.id,
+    createdById: ticket.createdById,
+    assignedToId: ticket.assignedToId,
+    resolveById: ticket.resolveById,
     title: ticket.title,
     description: ticket.description,
     status: ticket.status,
@@ -20,7 +23,14 @@ export class PrismaTicketRepository implements TicketRepository {
 
   async create(input: CreateTicketDto): Promise<TicketDto> {
     const data = createTicketSchema.parse(input);
-    return toDto(await this.client.ticket.create({ data }));
+    try {
+      return toDto(await this.client.ticket.create({ data }));
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+        throw new TicketUserReferenceError();
+      }
+      throw error;
+    }
   }
 
   async update(id: string, input: UpdateTicketDto): Promise<TicketDto> {
@@ -29,6 +39,9 @@ export class PrismaTicketRepository implements TicketRepository {
     try {
       return toDto(await this.client.ticket.update({ where: { id: ticketId }, data }));
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+        throw new TicketUserReferenceError();
+      }
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
         throw new TicketNotFoundError(ticketId);
       }
@@ -43,8 +56,8 @@ export class PrismaTicketRepository implements TicketRepository {
   }
 
   async listing(input: ListTicketsDto): Promise<TicketListingDto> {
-    const { page, limit, status, priority } = listTicketsSchema.parse(input);
-    const where = { status, priority };
+    const { page, limit, status, priority, createdById, assignedToId, resolveById } = listTicketsSchema.parse(input);
+    const where = { status, priority, createdById, assignedToId, resolveById };
     const [total, items] = await this.client.$transaction([
       this.client.ticket.count({ where }),
       this.client.ticket.findMany({

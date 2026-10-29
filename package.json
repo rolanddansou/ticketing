@@ -7,8 +7,8 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "test": "tsx --test tests/ticket.dto.test.ts",
-    "test:integration": "prisma generate && tsx --test tests/ticket.repository.integration.test.ts",
+    "test": "tsx --test tests/*.dto.test.ts tests/*.routes.test.ts",
+    "test:integration": "prisma generate && tsx --test tests/*.integration.test.ts",
     "dev": "tsx watch src/server.ts",
     "build": "prisma generate && tsc",
     "start": "node dist/server.js",
@@ -16,6 +16,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "db:recover-legacy": "tsx scripts/recover-legacy-tickets.ts",
     "db:studio": "prisma studio"
   },
   "keywords": [],

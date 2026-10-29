@@ -16,6 +16,9 @@ export const createTicketSchema = z.strictObject({
   description: fields.description.default(null),
   status: fields.status.default("OPEN"),
   priority: fields.priority.default("MEDIUM"),
+  createdById: z.uuid().nullable().default(null),
+  assignedToId: z.uuid().nullable().default(null),
+  resolveById: z.uuid().nullable().default(null),
 });
 
 export const updateTicketSchema = z.strictObject({
@@ -23,6 +26,8 @@ export const updateTicketSchema = z.strictObject({
   description: fields.description.optional(),
   status: fields.status.optional(),
   priority: fields.priority.optional(),
+  assignedToId: z.uuid().nullable().optional(),
+  resolveById: z.uuid().nullable().optional(),
 }).refine((input) => Object.values(input).some((value) => value !== undefined), {
   message: "Au moins un champ doit être fourni",
 });
@@ -34,6 +39,9 @@ const positiveInteger = z.union([
 ]).pipe(z.number().int().positive().max(Number.MAX_SAFE_INTEGER));
 
 export const listTicketsSchema = z.strictObject({
+  createdById: z.uuid().optional(),
+  assignedToId: z.uuid().optional(),
+  resolveById: z.uuid().optional(),
   page: positiveInteger.default(1),
   limit: positiveInteger.pipe(z.number().max(100)).default(20),
   status: fields.status.optional(),
@@ -48,6 +56,9 @@ export type UpdateTicketDto = z.input<typeof updateTicketSchema>;
 export type ListTicketsDto = z.input<typeof listTicketsSchema>;
 
 export interface TicketDto {
+  createdById: string | null;
+  assignedToId: string | null;
+  resolveById: string | null;
   id: string;
   title: string;
   description: string | null;

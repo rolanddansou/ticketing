@@ -7,6 +7,13 @@ export interface TicketRepository {
   listing(input: ListTicketsDto): Promise<TicketListingDto>;
 }
 
+export class TicketUserReferenceError extends Error {
+  constructor() {
+    super("Un utilisateur référencé par le ticket n'existe pas");
+    this.name = "TicketUserReferenceError";
+  }
+}
+
 export class TicketNotFoundError extends Error {
   constructor(public readonly ticketId: string) {
     super(`Ticket introuvable : ${ticketId}`);
