@@ -8,4 +8,5 @@ export interface AuthRepository {
   rotateRefresh(hash: string, nextHash: string): Promise<{ identity: Identity; expiresAt: Date } | null>;
   logout(hash: string): Promise<void>;
   logoutAll(userId: string): Promise<void>;
+  changePassword(userId: string, sessionId: string, expectedHash: string, passwordHash: string): Promise<boolean>;
 }

@@ -37,6 +37,9 @@ export function createAuthRouter(service: AuthService, browser: BrowserConfig = 
     await service.logoutAll(res.locals.identity!.user.id); clearRefresh(res, browser); res.sendStatus(204);
   });
   router.get("/me", authenticate(service), (_req, res) => { res.json(res.locals.identity!.user); });
+  router.post("/change-password", authenticate(service), limitRequests(10, 15 * 60000), async (req, res) => {
+    await service.changePassword(res.locals.identity!, req.body); clearRefresh(res, browser); res.sendStatus(204);
+  });
   if (invitations) router.post("/accept-invitation", limitRequests(10, 15 * 60000), async (req, res) => {
     await invitations.accept(req.body); res.sendStatus(204);
   });

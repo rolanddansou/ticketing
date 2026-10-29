@@ -1,6 +1,7 @@
 import type { PrismaClient, User, Prisma } from "../../generated/prisma/client.js";
 import type { UserDto } from "../users/user.dto.js";
 import type { AuthRepository, Credentials, Identity } from "./auth.repository.js";
+import { invalidateLinks } from "./prisma-action.repository.js";
 import type { BootstrapRepository } from "./bootstrap.js";
 
 export function publicUser(user: User): UserDto {
@@ -62,6 +63,18 @@ export class PrismaAuthRepository implements BootstrapRepository, AuthRepository
     await this.client.$transaction(async tx => {
       await lockUser(tx, userId);
       await tx.authSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+    });
+  }
+  async changePassword(userId: string, sessionId: string, expectedHash: string, passwordHash: string): Promise<boolean> {
+    return this.client.$transaction(async tx => {
+      await lockUser(tx, userId);
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      const session = await tx.authSession.findFirst({ where: { id: sessionId, userId, revokedAt: null, expiresAt: { gt: new Date() } } });
+      if (!session || !user || user.status !== "ACTIVE" || user.passwordHash !== expectedHash) return false;
+      await tx.user.update({ where: { id: userId }, data: { passwordHash } });
+      await tx.authSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      await invalidateLinks(tx, userId);
+      return true;
     });
   }
   async createFirstAdmin(input: { name: string; email: string; passwordHash: string }): Promise<void> {

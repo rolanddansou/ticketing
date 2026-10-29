@@ -211,3 +211,20 @@ test("forgot/reset is generic, single-use, expiring and revokes all sessions", a
     assert.deepEqual(await existing.json(), await missing.json());
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });
+
+test("authenticated password change checks old password and revokes sessions and links", async () => {
+  const hasher = new Argon2PasswordHasher(); const password = "A password to change 123", next = "Changed password value 456";
+  const user = await db.prisma.user.create({ data: { name: "Change", email: "change@example.com", status: "ACTIVE", passwordHash: await hasher.hash(password) } });
+  const auth = new AuthService(new PrismaAuthRepository(db.prisma), hasher, new JwtTokens(jwtConfig));
+  const first = await auth.login(user.email, password), second = await auth.login(user.email, password);
+  const identity = await auth.authenticate(first.accessToken);
+  await assert.rejects(auth.changePassword(identity, { currentPassword: "wrong", password: next, confirmPassword: next }));
+  assert.ok(await auth.authenticate(first.accessToken));
+  const recovery = new PasswordRecoveryService(new PrismaActionRepository(db.prisma), hasher, new EmailEncryption("ab".repeat(32)), "https://frontend.example.com");
+  await recovery.forgot({ email: user.email });
+  await auth.changePassword(identity, { currentPassword: password, password: next, confirmPassword: next });
+  await assert.rejects(auth.authenticate(first.accessToken)); await assert.rejects(auth.authenticate(second.accessToken));
+  await assert.rejects(auth.refresh(second.refreshToken));
+  assert.equal(await db.prisma.actionToken.count({ where: { userId: user.id, consumedAt: null } }), 0);
+  await assert.rejects(auth.login(user.email, password)); await auth.login(user.email, next);
+});

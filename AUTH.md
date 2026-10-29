@@ -1,5 +1,12 @@
 # Authentification
 
+## Changer son mot de passe
+
+POST /auth/change-password (Bearer) accepte currentPassword, password et
+confirmPassword. L'ancien mot de passe est vérifié puis toutes les sessions et
+les liens sont révoqués atomiquement. Réponse 204, cookie effacé ; reconnexion
+requise. Les modifications concurrentes ne peuvent pas réutiliser l'ancien hash.
+
 ## Mot de passe oublié
 
 POST /auth/forgot-password avec email retourne toujours le même message 202,

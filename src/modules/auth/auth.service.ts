@@ -4,7 +4,8 @@ export const newToken = () => randomBytes(32).toString("base64url");
 import type { AuthRepository, Identity } from "./auth.repository.js";
 import type { PasswordHasher } from "./password.js";
 import { JwtTokens } from "./jwt.js";
-import { unauthorized } from "./errors.js";
+import { unauthorized, HttpError } from "./errors.js";
+import { changePasswordSchema } from "./auth.dto.js";
 
 export class AuthService {
   private readonly dummyHash: Promise<string>;
@@ -30,6 +31,14 @@ export class AuthService {
   }
   logout(token?: string) { return token ? this.repository.logout(tokenHash(token)) : Promise.resolve(); }
   logoutAll(userId: string) { return this.repository.logoutAll(userId); }
+  async changePassword(identity: Identity, input: unknown): Promise<void> {
+    const { currentPassword, password } = changePasswordSchema.parse(input);
+    const credentials = await this.repository.findCredentials(identity.user.email);
+    const valid = await this.hasher.verify(credentials?.passwordHash ?? await this.dummyHash, currentPassword);
+    if (!valid || !credentials?.passwordHash || credentials.user.id !== identity.user.id) throw new HttpError(400, "Mot de passe actuel invalide");
+    const changed = await this.repository.changePassword(identity.user.id, identity.sessionId, credentials.passwordHash, await this.hasher.hash(password));
+    if (!changed) throw unauthorized();
+  }
   async authenticate(token: string): Promise<Identity> {
     const { userId, sessionId } = await this.tokens.verify(token);
     const identity = await this.repository.identity(userId, sessionId);
