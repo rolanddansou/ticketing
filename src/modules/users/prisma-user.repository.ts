@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient, type User } from "../../generated/prisma/cli
 import { createUserSchema, updateUserSchema, listUsersSchema, userIdSchema } from "./user.dto.js";
 import type { CreateUserDto, UpdateUserDto, ListUsersDto, UserDto, UserListingDto } from "./user.dto.js";
 import { UserNotFoundError, UserEmailAlreadyExistsError, type UserRepository } from "./user.repository.js";
+import type { UserScope } from "./user.repository.js";
 
 function toDto(user: User): UserDto {
   return { id: user.id, name: user.name, email: user.email, role: user.role, status: user.status, createdAt: user.createdAt.toISOString() };
@@ -28,14 +29,14 @@ export class PrismaUserRepository implements UserRepository {
     try { return toDto(await this.client.user.update({ where: { id: userId }, data })); }
     catch (error) { rethrow(error, userId); }
   }
-  async get(id: string): Promise<UserDto | null> {
+  async get(id: string, scope?: UserScope): Promise<UserDto | null> {
     const userId = userIdSchema.parse(id);
-    const user = await this.client.user.findUnique({ where: { id: userId } });
+    const user = await this.client.user.findFirst({ where: { id: userId, role: scope ? { in: scope.roles } : undefined } });
     return user ? toDto(user) : null;
   }
-  async listing(input: ListUsersDto): Promise<UserListingDto> {
+  async listing(input: ListUsersDto, scope?: UserScope): Promise<UserListingDto> {
     const { page, limit, role, status } = listUsersSchema.parse(input);
-    const where = { role, status };
+    const where = { role, status, AND: scope ? { role: { in: scope.roles } } : undefined };
     const [total, users] = await this.client.$transaction([
       this.client.user.count({ where }),
       this.client.user.findMany({ where, skip: (page - 1) * limit, take: limit,

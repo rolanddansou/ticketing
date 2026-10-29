@@ -7,7 +7,11 @@ import { invalidateLinks } from "../auth/prisma-action.repository.js";
 
 export async function requireAdmin(tx: Prisma.TransactionClient, actorId: string) {
   const actor = await tx.user.findUnique({ where: { id: actorId } });
-  if (!actor || actor.status !== "ACTIVE" || actor.role !== "SUPER_ADMIN") throw new HttpError(403, "Accès interdit");
+  if (!actor || actor.status !== "ACTIVE" || !["SUPER_ADMIN", "ADMIN"].includes(actor.role)) throw new HttpError(403, "Accès interdit");
+  return actor;
+}
+export function requireManagedRole(actorRole: string, targetRole: string) {
+  if (actorRole === "ADMIN" && !["AGENT", "USER"].includes(targetRole)) throw new HttpError(403, "Ce rôle ne peut pas être géré par un Admin");
 }
 export async function revokeSecurity(tx: Prisma.TransactionClient, userId: string) {
   await tx.authSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
@@ -24,7 +28,8 @@ export class PrismaAdminRepository implements AdminRepository {
   async create(actorId: string, input: CreateUserDto & { passwordHash: string }): Promise<UserDto> {
     try {
       return await this.client.$transaction(async tx => {
-        await adminLock(tx); await requireAdmin(tx, actorId);
+        await adminLock(tx); const actor = await requireAdmin(tx, actorId);
+        requireManagedRole(actor.role, input.role ?? "USER");
         return publicUser(await tx.user.create({ data: { ...input, status: "ACTIVE" } }));
       });
     } catch (error) { mapError(error); }
@@ -34,9 +39,11 @@ export class PrismaAdminRepository implements AdminRepository {
   private async mutate(actorId: string, id: string, input: UpdateUserDto, enabled?: boolean): Promise<UserDto> {
     try {
       return await this.client.$transaction(async tx => {
-        await adminLock(tx); await requireAdmin(tx, actorId); await lockUser(tx, id);
+        await adminLock(tx); const actor = await requireAdmin(tx, actorId); await lockUser(tx, id);
         const current = await tx.user.findUnique({ where: { id } });
         if (!current) throw new HttpError(404, "Utilisateur introuvable");
+        requireManagedRole(actor.role, current.role);
+        if (input.role) requireManagedRole(actor.role, input.role);
         if (enabled === true && !current.passwordHash) throw new HttpError(409, "Ce compte doit accepter une invitation");
         const status = enabled === undefined ? current.status : enabled ? "ACTIVE" : "DISABLED";
         if (current.role === "SUPER_ADMIN" && current.status === "ACTIVE" && (status !== "ACTIVE" || (input.role && input.role !== "SUPER_ADMIN"))) {

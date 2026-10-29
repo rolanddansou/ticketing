@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 export const userIdSchema = z.uuid();
-export const userRoleSchema = z.enum(["SUPER_ADMIN", "EMPLOYEE", "AGENT", "VIEWER"]);
+export const userRoleSchema = z.enum(["SUPER_ADMIN", "ADMIN", "AGENT", "USER"]);
 export const userStatusSchema = z.enum(["INVITED", "ACTIVE", "DISABLED"]);
 const name = z.string().trim().min(1).max(200);
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
 
-export const createUserSchema = z.strictObject({ name, email, role: userRoleSchema.default("EMPLOYEE") });
+export const createUserSchema = z.strictObject({ name, email, role: userRoleSchema.default("USER") });
 export const updateUserSchema = z.strictObject({
   name: name.optional(), email: email.optional(), role: userRoleSchema.optional(),
 }).refine(input => Object.values(input).some(value => value !== undefined), {

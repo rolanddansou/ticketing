@@ -21,7 +21,7 @@ import { PrismaOutboxRepository } from "../src/modules/email/prisma-outbox.repos
 import { OutboxWorker } from "../src/modules/email/worker.js";
 import { PasswordRecoveryService } from "../src/modules/auth/password-recovery.service.js";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 let db: Awaited<ReturnType<typeof testDatabase>>;
 before(async () => { db = await testDatabase(); });
 after(async () => { await db?.close(); });
@@ -50,6 +50,31 @@ test("credential migration preserves existing users and ticket relations", async
   } finally {
     await client.query("RESET search_path"); await client.query(`DROP SCHEMA "${schema}" CASCADE`); client.release();
   }
+});
+
+test("role migration maps legacy accounts to USER without privilege escalation", async () => {
+  const schema = `roles_${randomUUID().replaceAll("-", "")}`;
+  const client = await db.pool.connect();
+  const alignment = "20261030001100_align_user_roles";
+  try {
+    await client.query(`CREATE SCHEMA "${schema}"`); await client.query(`SET search_path TO "${schema}"`);
+    for (const migration of readdirSync("prisma/migrations", { withFileTypes: true }).filter(entry => entry.isDirectory() && entry.name < alignment).map(entry => entry.name).sort()) {
+      await client.query(readFileSync(`prisma/migrations/${migration}/migration.sql`, "utf8"));
+    }
+    const ids = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    for (const [index, role] of ["EMPLOYEE", "VIEWER", "AGENT", "SUPER_ADMIN"].entries()) {
+      await client.query('INSERT INTO "User" (id,name,email,role) VALUES ($1,$2,$3,$4)', [ids[index], role, `${index}@roles.com`, role]);
+    }
+    const ticket = randomUUID();
+    await client.query('INSERT INTO "Ticket" (id,title,"createdById","updatedAt") VALUES ($1,$2,$3,now())', [ticket, "Keep me", ids[0]]);
+    await client.query(readFileSync(`prisma/migrations/${alignment}/migration.sql`, "utf8"));
+    for (const [index, role] of ["USER", "USER", "AGENT", "SUPER_ADMIN"].entries()) {
+      assert.equal((await client.query('SELECT role FROM "User" WHERE id=$1', [ids[index]])).rows[0].role, role);
+    }
+    assert.equal((await client.query('SELECT "createdById" FROM "Ticket" WHERE id=$1', [ticket])).rows[0].createdById, ids[0]);
+    await client.query('INSERT INTO "User" (id,name,email) VALUES ($1,$2,$3)', [randomUUID(), "Default", "default@roles.com"]);
+    assert.equal((await client.query('SELECT role FROM "User" WHERE email=$1', ["default@roles.com"])).rows[0].role, "USER");
+  } finally { await client.query("ROLLBACK"); await client.query("RESET search_path"); await client.query(`DROP SCHEMA "${schema}" CASCADE`); client.release(); }
 });
 test("bootstrap is single-use even concurrently", async () => {
   const service = new BootstrapService(new PrismaAuthRepository(db.prisma), new Argon2PasswordHasher());
@@ -147,7 +172,7 @@ test("admin management revokes sessions and preserves the last active admin conc
     assert.equal((await fetch(`http://127.0.0.1:${address.port}/users`, { headers: { Authorization: `Bearer ${token.accessToken}` } })).status, 403);
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
   const results = await Promise.allSettled([
-    admin.update(first.id, first.id, { role: "EMPLOYEE" }),
+    admin.update(first.id, first.id, { role: "USER" }),
     admin.setEnabled(second.id, second.id, false),
   ]);
   assert.equal(results.filter(result => result.status === "fulfilled").length, 1);

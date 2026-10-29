@@ -16,7 +16,7 @@ en plus de `GET /health`.
 - Connexion PostgreSQL via Prisma et `@prisma/adapter-pg`, vérifiée avant le démarrage HTTP.
 - Arrêt du serveur et fermeture de Prisma sur SIGINT/SIGTERM.
 - Modèle Ticket, enums de statut/priorité et migration SQL initiale.
-- Modèle User avec email unique, rôles EMPLOYEE/AGENT/VIEWER et repository dédié.
+- Modèle User avec email unique, rôles SUPER_ADMIN/ADMIN/AGENT/USER et repository dédié.
 - Relations Ticket vers son créateur, son utilisateur affecté et son utilisateur de résolution.
 - DTO indépendants de Prisma et validation à l'entrée des méthodes du repository.
 - Interface du repository et implémentation Prisma avec pagination, filtres et mapping des dates.
@@ -160,7 +160,7 @@ client dans `PrismaUserRepository`.
 | `id` | UUID généré, interdit en entrée |
 | `name` | Obligatoire en création, trimé, 1–200 caractères |
 | `email` | Obligatoire en création, valide, trimé, minuscules, maximum 254 caractères, unique |
-| `role` | EMPLOYEE par défaut ; valeurs SUPER_ADMIN, EMPLOYEE, AGENT, VIEWER |
+| `role` | USER par défaut ; valeurs SUPER_ADMIN, ADMIN, AGENT, USER |
 | `status` | INVITED, ACTIVE ou DISABLED ; géré par les parcours d'administration/auth |
 | `createdAt` | Automatique, exposé en ISO 8601, interdit en entrée |
 
@@ -293,9 +293,9 @@ un utilisateur référencé et la migration sur table Ticket vide ou déjà peup
 
 Toutes les routes Ticket exigent `Authorization: Bearer <accessToken>`.
 Les corps POST/PATCH sont des objets JSON. POST exige uniquement `title` ;
-`createdById` est interdit et défini depuis l'identité connectée. EMPLOYEE ne peut
+`createdById` est interdit et défini depuis l'identité connectée. USER ne peut
 pas fournir status/assignedToId/resolveById. PATCH est réservé au support
-(SUPER_ADMIN et AGENT), exige au moins un champ et interdit `createdById`.
+(SUPER_ADMIN, ADMIN et AGENT), exige au moins un champ et interdit `createdById`.
 
 Exemple de création :
 

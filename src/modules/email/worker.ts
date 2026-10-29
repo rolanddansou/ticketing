@@ -1,6 +1,7 @@
 import type { OutboxRepository } from "./outbox.repository.js";
 import type { EmailProvider } from "./email-provider.js";
 import { EmailEncryption } from "./encryption.js";
+import { ResendDeliveryError } from "./email-delivery-error.js";
 export class OutboxWorker {
   private timer?: ReturnType<typeof setInterval>;
   private pending?: Promise<void>;
@@ -10,9 +11,11 @@ export class OutboxWorker {
     if (!item) return;
     if (item.attempts > 5 || !await this.repository.isValid(item, now)) { await this.repository.finish(item, now, false); return; }
     try {
-      await this.provider.send(this.encryption.decrypt(item.payload));
-    } catch {
-      console.error("Email delivery failed", { outboxId: item.id, attempt: item.attempts });
+      await this.provider.send(this.encryption.decrypt(item.payload), { idempotencyKey: item.id });
+    } catch (error) {
+      const diagnostic = error instanceof ResendDeliveryError
+        ? { provider: error.provider, httpStatus: error.httpStatus } : {};
+      console.error("Email delivery failed", { outboxId: item.id, attempt: item.attempts, ...diagnostic });
       const delay = [1, 5, 15, 60][item.attempts - 1];
       const next = delay ? new Date(now.getTime() + delay * 60000) : null;
       if (!next || next >= item.expiresAt) await this.repository.finish(item, now, false);

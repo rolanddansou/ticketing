@@ -22,9 +22,9 @@ enum TicketPriority {
 
 enum UserRole {
   SUPER_ADMIN
-  EMPLOYEE
+  ADMIN
   AGENT
-  VIEWER
+  USER
 }
 
 enum UserStatus {
@@ -37,7 +37,7 @@ model User {
   id              String   @id @default(uuid()) @db.Uuid
   name            String   @db.VarChar(200)
   email           String   @unique @db.VarChar(254)
-  role            UserRole @default(EMPLOYEE)
+  role            UserRole @default(USER)
   status          UserStatus @default(INVITED)
   passwordHash    String?
   createdAt       DateTime @default(now())

@@ -8,7 +8,7 @@
   },
   "scripts": {
     "auth:bootstrap-admin": "tsx scripts/bootstrap-admin.ts",
-    "test": "tsx --test tests/*.dto.test.ts tests/*.routes.test.ts",
+    "test": "tsx --test tests/*.dto.test.ts tests/*.routes.test.ts tests/*.unit.test.ts",
     "test:integration": "prisma generate && tsx --test tests/*.integration.test.ts",
     "dev": "tsx watch src/server.ts",
     "build": "prisma generate && tsc",

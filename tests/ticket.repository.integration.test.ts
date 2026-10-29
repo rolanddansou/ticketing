@@ -110,10 +110,10 @@ test("repository lifecycle, validation, filters and pagination", async () => {
   const users = new PrismaUserRepository(prisma);
   const creator = await users.create({ name: " Alice ", email: " Alice@Example.com " });
   const agent = await users.create({ name: "Agent", email: "agent@example.com", role: "AGENT" });
-  const viewer = await users.create({ name: "Viewer", email: "viewer@example.com", role: "VIEWER" });
+  const viewer = await users.create({ name: "User", email: "viewer@example.com", role: "USER" });
   assert.equal(creator.name, "Alice");
   assert.equal(creator.email, "alice@example.com");
-  assert.equal(creator.role, "EMPLOYEE");
+  assert.equal(creator.role, "USER");
   assert.equal(new Date(creator.createdAt).toISOString(), creator.createdAt);
   assert.deepEqual(await users.get(creator.id), creator);
   assert.equal(await users.get(randomUUID()), null);

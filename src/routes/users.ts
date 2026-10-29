@@ -10,7 +10,7 @@ import type { InvitationService } from "../modules/auth/invitation.service.js";
 
 export function createUsersRouter(auth: AuthService, admin: AdminService, users: UserRepository, invitations?: InvitationService): Router {
   const router = Router();
-  router.use(authenticate(auth), requireRoles("SUPER_ADMIN"));
+  router.use(authenticate(auth), requireRoles("SUPER_ADMIN", "ADMIN"));
   if (invitations) {
     router.post("/invitations", async (req, res) => { await invitations.invite(res.locals.identity!.user.id, req.body); res.sendStatus(202); });
     router.post("/:id/resend-invitation", async (req, res) => {
@@ -22,9 +22,11 @@ export function createUsersRouter(auth: AuthService, admin: AdminService, users:
     const user = await admin.create(res.locals.identity!.user.id, req.body);
     res.location(`/users/${user.id}`).status(201).json(user);
   });
-  router.get("/", async (req, res) => { res.json(await users.listing(listUsersSchema.parse(req.query))); });
+  router.get("/", async (req, res) => {
+    res.json(await users.listing(listUsersSchema.parse(req.query), res.locals.identity!.user.role === "ADMIN" ? { roles: ["AGENT", "USER"] } : undefined));
+  });
   router.get("/:id", async (req, res) => {
-    const user = await users.get(userIdSchema.parse(req.params.id));
+    const user = await users.get(userIdSchema.parse(req.params.id), res.locals.identity!.user.role === "ADMIN" ? { roles: ["AGENT", "USER"] } : undefined);
     if (!user) throw new HttpError(404, "Utilisateur introuvable");
     res.json(user);
   });

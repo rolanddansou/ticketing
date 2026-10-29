@@ -81,16 +81,30 @@ test("complete browser auth flow and ticket permission matrix", async () => {
     for (const body of [{ title: "Bad", createdById: null }, { title: "Bad", status: "CLOSED" }, { title: "Bad", assignedToId: null }, { title: "Bad", resolveById: null }]) {
       assert.equal((await call("/tickets", "POST", body, employeeToken)).status, 400);
     }
-    for (const role of ["AGENT", "VIEWER"] as const) {
-      const email = `${role.toLowerCase()}@flow.com`;
+    for (const role of ["AGENT", "ADMIN"] as const) {
+      const email = `role-${role.toLowerCase()}@flow.com`;
       response = await call("/users", "POST", { name: role, email, role, password, confirmPassword: password }, root.body.accessToken);
       assert.equal(response.status, 201); assert.equal("passwordHash" in await response.json(), false);
       const actor = await login(email);
-      assert.equal((await call("/users", "GET", undefined, actor.body.accessToken)).status, 403);
+      assert.equal((await call("/users", "GET", undefined, actor.body.accessToken)).status, role === "ADMIN" ? 200 : 403);
       assert.equal((await call(`/tickets/${legacy.id}`, "GET", undefined, actor.body.accessToken)).status, 200);
       assert.ok((await (await call("/tickets", "GET", undefined, actor.body.accessToken)).json()).total >= 3);
-      assert.equal((await call("/tickets", "POST", { title: role }, actor.body.accessToken)).status, role === "VIEWER" ? 403 : 201);
-      assert.equal((await call(`/tickets/${other.id}`, "PATCH", { title: "Updated" }, actor.body.accessToken)).status, role === "VIEWER" ? 403 : 200);
+      assert.equal((await call("/tickets", "POST", { title: role }, actor.body.accessToken)).status, 201);
+      assert.equal((await call(`/tickets/${other.id}`, "PATCH", { title: "Updated" }, actor.body.accessToken)).status, 200);
+      if (role === "ADMIN") {
+        assert.equal((await call("/users", "POST", { name: "Escalation", email: "escalation@flow.com", role: "SUPER_ADMIN", password, confirmPassword: password }, actor.body.accessToken)).status, 403);
+        assert.equal((await call("/users/invitations", "POST", { name: "Escalation", email: "escalation@flow.com", role: "ADMIN" }, actor.body.accessToken)).status, 403);
+        assert.equal((await call(`/users/${root.body.user.id}`, "PATCH", { name: "Forbidden" }, actor.body.accessToken)).status, 403);
+        assert.equal((await call(`/users/${root.body.user.id}`, "GET", undefined, actor.body.accessToken)).status, 404);
+        assert.equal((await call(`/users/${employee.body.user.id}`, "PATCH", { role: "ADMIN" }, actor.body.accessToken)).status, 403);
+        const managed = await call("/users", "POST", { name: "Managed user", email: "managed@flow.com", role: "USER", password, confirmPassword: password }, actor.body.accessToken);
+        assert.equal(managed.status, 201);
+        const managedUser = await managed.json();
+        assert.equal((await call(`/users/${managedUser.id}/disable`, "POST", {}, actor.body.accessToken)).status, 200);
+        assert.equal((await call(`/users/${managedUser.id}/enable`, "POST", {}, actor.body.accessToken)).status, 200);
+        const listed = await (await call("/users", "GET", undefined, actor.body.accessToken)).json();
+        assert.ok(listed.items.every((user: { role: string }) => ["USER", "AGENT"].includes(user.role)));
+      }
     }
     assert.equal((await call("/auth/forgot-password", "POST", { email: "employee@flow.com" })).status, 202);
     await worker.tick(); assert.equal(provider.messages.length, 2);
@@ -98,11 +112,11 @@ test("complete browser auth flow and ticket permission matrix", async () => {
     assert.equal((await call("/auth/reset-password", "POST", { token: mailToken(1), password: next, confirmPassword: next })).status, 204);
     assert.equal((await call("/auth/me", "GET", undefined, employeeToken)).status, 401);
     await login("employee@flow.com", next);
-    const current = await login("agent@flow.com");
+    const current = await login("role-agent@flow.com");
     const changed = "Changed browser password 789";
     response = await call("/auth/change-password", "POST", { currentPassword: password, password: changed, confirmPassword: changed }, current.body.accessToken);
     assert.equal(response.status, 204); assert.match(response.headers.get("set-cookie")!, /Expires=Thu, 01 Jan 1970/);
-    const again = await login("agent@flow.com", changed);
+    const again = await login("role-agent@flow.com", changed);
     assert.equal((await call("/auth/logout", "POST", {}, undefined, { Cookie: again.cookie, Origin: frontend, "X-CSRF-Protection": "1" })).status, 204);
     assert.equal((await call("/auth/me", "GET", undefined, again.body.accessToken)).status, 401);
     // Exhaustion remains a generic 429 and never invokes an email provider inline.

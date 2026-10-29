@@ -1,0 +1,9 @@
+BEGIN;
+CREATE TYPE "UserRole_aligned" AS ENUM ('SUPER_ADMIN', 'ADMIN', 'AGENT', 'USER');
+ALTER TABLE "User" ALTER COLUMN "role" DROP DEFAULT;
+ALTER TABLE "User" ALTER COLUMN "role" TYPE "UserRole_aligned" USING
+  (CASE "role"::text WHEN 'EMPLOYEE' THEN 'USER' WHEN 'VIEWER' THEN 'USER' ELSE "role"::text END)::"UserRole_aligned";
+DROP TYPE "UserRole";
+ALTER TYPE "UserRole_aligned" RENAME TO "UserRole";
+ALTER TABLE "User" ALTER COLUMN "role" SET DEFAULT 'USER';
+COMMIT;
