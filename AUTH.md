@@ -1,5 +1,17 @@
 # Authentification
 
+## Administration (Bearer SUPER_ADMIN)
+
+- POST /users : name, email, role (EMPLOYEE par défaut), password, confirmPassword ; 201.
+- GET /users : page, limit, role, status ; GET /users/:id.
+- PATCH /users/:id : name/email/role uniquement.
+- POST /users/:id/disable et /enable : désactivation/réactivation.
+
+Un compte sans mot de passe doit accepter une invitation avant activation.
+Les changements d'email/rôle et la désactivation révoquent les sessions.
+Le dernier SUPER_ADMIN actif ne peut pas être désactivé ou rétrogradé, même
+lors d'appels concurrents. Le hash et la confirmation ne figurent jamais en sortie.
+
 ## Sessions navigateur
 
 Login retourne uniquement le JWT dans le JSON ; refresh_token est un cookie

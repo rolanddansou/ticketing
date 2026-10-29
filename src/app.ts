@@ -7,6 +7,12 @@ import { authService } from "./modules/auth/index.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { browserConfig, authConfig } from "./config/auth.js";
 import { cors } from "./middlewares/browser-security.js";
+import { createUsersRouter } from "./routes/users.js";
+import { AdminService } from "./modules/users/admin.service.js";
+import { PrismaAdminRepository } from "./modules/users/prisma-admin.repository.js";
+import { Argon2PasswordHasher } from "./modules/auth/password.js";
+import { userRepository } from "./modules/users/index.js";
+import { prisma } from "./lib/prisma.js";
 
 export const app = express();
 
@@ -16,6 +22,7 @@ app.use(cors(browserConfig));
 app.use(express.json({ limit: "1mb" }));
 app.use(healthRouter);
 app.use("/auth", createAuthRouter(authService, browserConfig));
+app.use("/users", createUsersRouter(authService, new AdminService(new PrismaAdminRepository(prisma), new Argon2PasswordHasher()), userRepository));
 app.use("/tickets", createTicketsRouter(ticketRepository));
 app.use((_req, res) => {
   res.status(404).json({ error: { message: "Route introuvable" } });

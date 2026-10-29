@@ -10,6 +10,9 @@ import { JwtTokens } from "../src/modules/auth/jwt.js";
 import express from "express";
 import { createAuthRouter } from "../src/routes/auth.js";
 import { errorHandler } from "../src/middlewares/error-handler.js";
+import { AdminService } from "../src/modules/users/admin.service.js";
+import { PrismaAdminRepository } from "../src/modules/users/prisma-admin.repository.js";
+import { createUsersRouter } from "../src/routes/users.js";
 let db: Awaited<ReturnType<typeof testDatabase>>;
 before(async () => { db = await testDatabase(); });
 after(async () => { await db?.close(); });
@@ -89,4 +92,36 @@ test("refresh rotation detects replay and concurrent reuse; logout revokes acces
   const expired = await service.login(user.email, password);
   await db.prisma.authSession.updateMany({ where: { userId: user.id }, data: { expiresAt: new Date(0) } });
   await assert.rejects(service.refresh(expired.refreshToken));
+});
+
+test("admin management revokes sessions and preserves the last active admin concurrently", async () => {
+  const hasher = new Argon2PasswordHasher();
+  const admin = new AdminService(new PrismaAdminRepository(db.prisma), hasher);
+  const first = await db.prisma.user.findFirstOrThrow({ where: { role: "SUPER_ADMIN", status: "ACTIVE" } });
+  const password = "A managed password 123";
+  const second = await admin.create(first.id, { name: "Second admin", email: "second-admin@example.com", role: "SUPER_ADMIN", password, confirmPassword: password });
+  const employee = await admin.create(first.id, { name: "Managed", email: "managed@example.com", password, confirmPassword: password });
+  const auth = new AuthService(new PrismaAuthRepository(db.prisma), hasher, new JwtTokens(jwtConfig));
+  const login = await auth.login(employee.email, password);
+  const changed = await admin.update(first.id, employee.id, { role: "AGENT" });
+  assert.equal(changed.role, "AGENT");
+  await assert.rejects(auth.authenticate(login.accessToken));
+  await assert.rejects(admin.create(first.id, { name: "Duplicate", email: employee.email, password, confirmPassword: password }));
+  await admin.setEnabled(first.id, employee.id, false);
+  await assert.rejects(auth.login(employee.email, password));
+  await admin.setEnabled(first.id, employee.id, true);
+  await auth.login(employee.email, password);
+  const app = express(); app.use(express.json()); app.use("/users", createUsersRouter(auth, admin, new PrismaUserRepository(db.prisma))); app.use(errorHandler);
+  const server = app.listen(0, "127.0.0.1"); await new Promise<void>(resolve => server.once("listening", resolve));
+  const address = server.address(); assert.ok(address && typeof address !== "string");
+  try {
+    const token = await auth.login(employee.email, password);
+    assert.equal((await fetch(`http://127.0.0.1:${address.port}/users`, { headers: { Authorization: `Bearer ${token.accessToken}` } })).status, 403);
+  } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+  const results = await Promise.allSettled([
+    admin.update(first.id, first.id, { role: "EMPLOYEE" }),
+    admin.setEnabled(second.id, second.id, false),
+  ]);
+  assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
+  assert.equal(await db.prisma.user.count({ where: { role: "SUPER_ADMIN", status: "ACTIVE" } }), 1);
 });
