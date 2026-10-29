@@ -1,0 +1,16 @@
+node_modules/
+dist/
+src/generated/prisma/
+.env
+.env.*
+!.env.example
+*.log
+.idea/
+.vscode/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+*.pem
+*.key
