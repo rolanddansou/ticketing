@@ -20,6 +20,8 @@ import { FakeEmailProvider } from "../src/modules/email/email-provider.js";
 import { PrismaOutboxRepository } from "../src/modules/email/prisma-outbox.repository.js";
 import { OutboxWorker } from "../src/modules/email/worker.js";
 import { PasswordRecoveryService } from "../src/modules/auth/password-recovery.service.js";
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 let db: Awaited<ReturnType<typeof testDatabase>>;
 before(async () => { db = await testDatabase(); });
 after(async () => { await db?.close(); });
@@ -29,6 +31,25 @@ test("new accounts are invited and public DTO never exposes credentials", async 
   assert.equal(user.status, "INVITED");
   assert.equal("passwordHash" in user, false);
   assert.equal((await db.prisma.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash, null);
+});
+test("credential migration preserves existing users and ticket relations", async () => {
+  const schema = `upgrade_${randomUUID().replaceAll("-", "")}`;
+  const client = await db.pool.connect();
+  try {
+    await client.query(`CREATE SCHEMA "${schema}"`); await client.query(`SET search_path TO "${schema}"`);
+    for (const migration of ["20261029095052_init_ticket", "20261029110000_add_users_and_ticket_relations", "20261029120000_optional_ticket_creator"]) {
+      await client.query(readFileSync(`prisma/migrations/${migration}/migration.sql`, "utf8"));
+    }
+    const userId = randomUUID(), ticketId = randomUUID();
+    await client.query('INSERT INTO "User" (id, name, email, role) VALUES ($1, $2, $3, $4)', [userId, "Existing", "existing@example.com", "AGENT"]);
+    await client.query('INSERT INTO "Ticket" (id, title, "createdById", "updatedAt") VALUES ($1, $2, $3, now())', [ticketId, "Keep relation", userId]);
+    await client.query(readFileSync("prisma/migrations/20261030000100_account_credentials/migration.sql", "utf8"));
+    const user = (await client.query('SELECT id, name, role, status, "passwordHash" FROM "User"')).rows[0];
+    assert.deepEqual(user, { id: userId, name: "Existing", role: "AGENT", status: "INVITED", passwordHash: null });
+    assert.deepEqual((await client.query('SELECT id, "createdById" FROM "Ticket"')).rows, [{ id: ticketId, createdById: userId }]);
+  } finally {
+    await client.query("RESET search_path"); await client.query(`DROP SCHEMA "${schema}" CASCADE`); client.release();
+  }
 });
 test("bootstrap is single-use even concurrently", async () => {
   const service = new BootstrapService(new PrismaAuthRepository(db.prisma), new Argon2PasswordHasher());

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { z } from "zod";
 const config = z.object({
-  JWT_SECRET: z.string().refine(value => Buffer.byteLength(value) >= 32),
+  JWT_SECRET: z.string().refine(value => Buffer.byteLength(value) >= 32 && !value.startsWith("replace_")),
   JWT_ISSUER: z.string().min(1).default("ticketing"),
   JWT_AUDIENCE: z.string().min(1).default("ticketing-api"),
   FRONTEND_URL: z.url().refine(value => ["http:", "https:"].includes(new URL(value).protocol)).default("http://localhost:5173"),

@@ -41,7 +41,10 @@ test("ticket HTTP routes and error responses", async () => {
   };
   const app = express();
   app.use(express.json({ limit: "1mb" }));
-  app.use("/tickets", createTicketsRouter(repository));
+  app.use("/tickets", createTicketsRouter(repository, (_req, res, next) => {
+    res.locals.identity = { sessionId: id, user: { id: userId, name: "Admin", email: "admin@example.com", role: "SUPER_ADMIN", status: "ACTIVE", createdAt: ticket.createdAt } };
+    next();
+  }));
   app.use(errorHandler);
   const server = app.listen(0, "127.0.0.1");
   await new Promise<void>(resolve => server.once("listening", resolve));
@@ -50,7 +53,7 @@ test("ticket HTTP routes and error responses", async () => {
   const base = `http://127.0.0.1:${address.port}/tickets`;
   const json = (method: string, body: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   try {
-    let response = await fetch(base, json("POST", { title: " Support ", createdById: userId }));
+    let response = await fetch(base, json("POST", { title: " Support " }));
     assert.equal(response.status, 201);
     assert.equal(response.headers.get("location"), `/tickets/${id}`);
     assert.deepEqual(await response.json(), ticket);
@@ -66,10 +69,9 @@ test("ticket HTTP routes and error responses", async () => {
 
     response = await fetch(base, json("POST", { title: "Support" }));
     assert.equal(response.status, 201);
-    assert.equal((await response.json()).createdById, null);
+    assert.equal((await response.json()).createdById, userId);
     response = await fetch(base, json("POST", { title: "Support", createdById: null }));
-    assert.equal(response.status, 201);
-    assert.equal((await response.json()).createdById, null);
+    assert.equal(response.status, 400);
 
     const beforeInvalid = calls;
     for (const [url, options] of [
@@ -101,7 +103,7 @@ test("ticket HTTP routes and error responses", async () => {
     response = await fetch(`${base}/${id}`, json("PATCH", { status: "CLOSED", assignedToId: null }));
     assert.equal(response.status, 404);
     failure = new TicketUserReferenceError();
-    response = await fetch(base, json("POST", { title: "Support", createdById: userId }));
+    response = await fetch(base, json("POST", { title: "Support" }));
     assert.equal(response.status, 422);
     response = await fetch(`${base}/${id}`, json("PATCH", { status: "CLOSED", assignedToId: null }));
     assert.equal(response.status, 422);

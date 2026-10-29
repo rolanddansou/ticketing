@@ -23,9 +23,10 @@ en plus de `GET /health`.
 - Tests des DTO et tests d'intégration sur PostgreSQL avec schéma isolé par exécution.
 - Dépôt Git local sur `main`, `.gitignore` et normalisation des fins de ligne avec `.gitattributes`.
 
-Les routes HTTP des utilisateurs, l'authentification, la couche service et la suppression
-de tickets ne sont pas encore implémentées. Aucun déploiement ni workflow GitHub Actions
-n'est configuré.
+L'authentification JWT/refresh, l'administration SUPER_ADMIN, les invitations SMTP,
+la réinitialisation des mots de passe et les permissions Ticket sont implémentées.
+Voir [AUTH.md](AUTH.md) pour les routes, les cookies et les variables obligatoires.
+La suppression de tickets, le frontend, le MFA et le déploiement restent à réaliser.
 
 ## Stack et organisation
 
@@ -91,8 +92,10 @@ une base de développement et une shadow database : le rôle local peut recevoir
 npm ci
 Copy-Item .env.example .env
 # Adapter DATABASE_URL dans .env
+# Configurer également JWT_SECRET, FRONTEND_URL, SMTP et OUTBOX_ENCRYPTION_KEY (AUTH.md)
 npm run db:generate
 npm run db:deploy
+npm run auth:bootstrap-admin
 npm run dev
 ```
 
@@ -143,9 +146,8 @@ Exécuter cette commande seule, sans déploiement ou écriture simultanés.
 
 La migration suivante, `20261029120000_optional_ticket_creator`, rend `createdById`
 nullable sans modifier les tickets existants. Un ticket peut désormais être créé
-sans User, par exemple avec `{ "title": "Demande de support" }` ; la réponse
-contient `createdById: null`. Cette souplesse est temporaire et le créateur reste
-interdit dans les modifications PATCH.
+sans User via le repository pour les reprises. Les routes HTTP authentifiées
+imposent désormais le créateur connecté ; le créateur reste interdit dans PATCH.
 
 ## Contrats utilisateurs
 
@@ -158,7 +160,8 @@ client dans `PrismaUserRepository`.
 | `id` | UUID généré, interdit en entrée |
 | `name` | Obligatoire en création, trimé, 1–200 caractères |
 | `email` | Obligatoire en création, valide, trimé, minuscules, maximum 254 caractères, unique |
-| `role` | EMPLOYEE par défaut ; valeurs EMPLOYEE, AGENT, VIEWER |
+| `role` | EMPLOYEE par défaut ; valeurs SUPER_ADMIN, EMPLOYEE, AGENT, VIEWER |
+| `status` | INVITED, ACTIVE ou DISABLED ; géré par les parcours d'administration/auth |
 | `createdAt` | Automatique, exposé en ISO 8601, interdit en entrée |
 
 `CreateUserDto` accepte name, email et role facultatif. `UpdateUserDto` accepte
@@ -288,22 +291,22 @@ un utilisateur référencé et la migration sur table Ticket vide ou déjà peup
 | GET | `/tickets` | 200, `{ items, total, page, limit }` |
 | GET | `/tickets/:id` | 200, TicketDto |
 
+Toutes les routes Ticket exigent `Authorization: Bearer <accessToken>`.
 Les corps POST/PATCH sont des objets JSON. POST exige uniquement `title` ;
-`createdById` est facultatif et accepte null. S'il est renseigné, l'utilisateur
-créateur doit déjà exister. PATCH accepte les champs modifiables du
-DTO, exige au moins un champ et interdit `createdById`. Aucune authentification
-n'est encore implémentée ; le créateur peut être fourni explicitement dans le corps.
+`createdById` est interdit et défini depuis l'identité connectée. EMPLOYEE ne peut
+pas fournir status/assignedToId/resolveById. PATCH est réservé au support
+(SUPER_ADMIN et AGENT), exige au moins un champ et interdit `createdById`.
 
-Exemple de création (remplacer l'UUID par celui d'un utilisateur existant) :
+Exemple de création :
 
 ```http
 POST /tickets
+Authorization: Bearer <accessToken>
 Content-Type: application/json
 
 {
   "title": "Impossible de se connecter",
-  "priority": "HIGH",
-  "createdById": "00000000-0000-4000-8000-000000000001"
+  "priority": "HIGH"
 }
 ```
 
@@ -311,6 +314,7 @@ Exemple de modification :
 
 ```http
 PATCH /tickets/00000000-0000-4000-8000-000000000002
+Authorization: Bearer <accessToken>
 Content-Type: application/json
 
 { "status": "IN_PROGRESS", "assignedToId": null }
@@ -323,6 +327,8 @@ Les paramètres inconnus, répétés ou invalides sont refusés.
 | Statut | Situation |
 | --- | --- |
 | 400 | DTO, UUID, pagination ou JSON invalide ; modification vide ou champ interdit |
+| 401 | JWT absent/invalide, session révoquée ou compte inactif |
+| 403 | Opération interdite au rôle connecté |
 | 404 | Ticket inexistant lors de Get ou Update |
 | 413 | Corps JSON dépassant 1 Mo |
 | 422 | Utilisateur référencé inexistant lors de Create ou Update |

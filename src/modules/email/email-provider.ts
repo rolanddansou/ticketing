@@ -6,6 +6,7 @@ export class SmtpEmailProvider implements EmailProvider {
   constructor(config: { host: string; port: number; secure: boolean; user?: string; password?: string }, private readonly from: string) {
     this.transport = nodemailer.createTransport({
       host: config.host, port: config.port, secure: config.secure,
+      requireTLS: process.env.NODE_ENV === "production" && !config.secure,
       auth: config.user ? { user: config.user, pass: config.password } : undefined,
       connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000,
     });

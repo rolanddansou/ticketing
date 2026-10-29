@@ -1,7 +1,7 @@
 import { Prisma, type PrismaClient, type Ticket } from "../../generated/prisma/client.js";
 import { createTicketSchema, updateTicketSchema, listTicketsSchema, ticketIdSchema } from "./ticket.dto.js";
 import type { CreateTicketDto, UpdateTicketDto, ListTicketsDto, TicketDto, TicketListingDto } from "./ticket.dto.js";
-import { TicketNotFoundError, TicketUserReferenceError, type TicketRepository } from "./ticket.repository.js";
+import { TicketNotFoundError, TicketUserReferenceError, type TicketRepository, type TicketScope } from "./ticket.repository.js";
 
 function toDto(ticket: Ticket): TicketDto {
   return {
@@ -49,15 +49,15 @@ export class PrismaTicketRepository implements TicketRepository {
     }
   }
 
-  async get(id: string): Promise<TicketDto | null> {
+  async get(id: string, scope?: TicketScope): Promise<TicketDto | null> {
     const ticketId = ticketIdSchema.parse(id);
-    const ticket = await this.client.ticket.findUnique({ where: { id: ticketId } });
+    const ticket = await this.client.ticket.findFirst({ where: { id: ticketId, createdById: scope?.createdById } });
     return ticket ? toDto(ticket) : null;
   }
 
-  async listing(input: ListTicketsDto): Promise<TicketListingDto> {
+  async listing(input: ListTicketsDto, scope?: TicketScope): Promise<TicketListingDto> {
     const { page, limit, status, priority, createdById, assignedToId, resolveById } = listTicketsSchema.parse(input);
-    const where = { status, priority, createdById, assignedToId, resolveById };
+    const where = { status, priority, createdById, assignedToId, resolveById, AND: scope ? { createdById: scope.createdById } : undefined };
     const [total, items] = await this.client.$transaction([
       this.client.ticket.count({ where }),
       this.client.ticket.findMany({

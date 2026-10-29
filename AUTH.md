@@ -1,5 +1,39 @@
 # Authentification
 
+## Démarrage
+
+1. Utiliser Node.js 24 et `npm ci`.
+2. Copier `.env.example` vers `.env`, configurer DATABASE_URL et FRONTEND_URL.
+3. Générer **deux** secrets indépendants avec
+   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` :
+   JWT_SECRET et OUTBOX_ENCRYPTION_KEY. Les valeurs d'exemple ne sont pas utilisables.
+4. Configurer SMTP_HOST/PORT/SECURE/FROM et les identifiants si nécessaires.
+5. `npm run db:deploy`, `npm run db:generate`, puis `npm run auth:bootstrap-admin`.
+6. `npm run dev`. En production : `npm run build` puis `npm start`.
+
+Les migrations ne sont pas appliquées automatiquement au démarrage. Les utilisateurs
+existants doivent être invités par le Super Admin pour définir leur mot de passe.
+Le frontend est à développer séparément : il lit le fragment token des liens,
+l'envoie par POST à l'API puis le retire de l'URL. Aucun GET ne consomme de jeton.
+SMTP est couvert via un faux provider dans les tests ; vérifier la délivrabilité
+avec les paramètres de votre fournisseur avant exploitation.
+
+## Permissions Ticket
+
+Toutes les routes /tickets exigent Bearer. /health reste public.
+
+| Rôle | Create | Get / Listing | Update |
+| --- | --- | --- | --- |
+| SUPER_ADMIN / AGENT | Oui | Tous | Tous |
+| EMPLOYEE | Oui | Ses tickets | Non |
+| VIEWER | Non | Tous | Non |
+
+POST /tickets n'accepte plus createdById : l'identité connectée l'impose.
+EMPLOYEE ne peut pas fournir status, assignedToId ou resolveById à la création.
+Un ticket d'autrui retourne 404 pour EMPLOYEE ; son total de listing est filtré
+en base. Les tickets historiques sans créateur restent visibles au support et
+aux VIEWER. Le repository conserve la création sans utilisateur pour les reprises.
+
 ## Changer son mot de passe
 
 POST /auth/change-password (Bearer) accepte currentPassword, password et

@@ -17,6 +17,7 @@ import { InvitationService } from "./modules/auth/invitation.service.js";
 import { PrismaActionRepository } from "./modules/auth/prisma-action.repository.js";
 import { emailEncryption } from "./modules/email/index.js";
 import { PasswordRecoveryService } from "./modules/auth/password-recovery.service.js";
+import { authenticate } from "./middlewares/authenticate.js";
 
 export const app = express();
 
@@ -29,7 +30,7 @@ const invitations = new InvitationService(new PrismaActionRepository(prisma), ne
 const recovery = new PasswordRecoveryService(new PrismaActionRepository(prisma), new Argon2PasswordHasher(), emailEncryption, authConfig.FRONTEND_URL);
 app.use("/auth", createAuthRouter(authService, browserConfig, invitations, recovery));
 app.use("/users", createUsersRouter(authService, new AdminService(new PrismaAdminRepository(prisma), new Argon2PasswordHasher()), userRepository, invitations));
-app.use("/tickets", createTicketsRouter(ticketRepository));
+app.use("/tickets", createTicketsRouter(ticketRepository, authenticate(authService)));
 app.use((_req, res) => {
   res.status(404).json({ error: { message: "Route introuvable" } });
 });
