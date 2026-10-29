@@ -1,5 +1,14 @@
 # Authentification
 
+## Login
+
+Configurer JWT_SECRET (au moins 32 octets aléatoires), JWT_ISSUER et JWT_AUDIENCE.
+POST /auth/login accepte email/password et retourne accessToken, tokenType Bearer,
+expiresIn (900 secondes) et user. GET /auth/me exige Authorization: Bearer <token>.
+Les sessions durent 30 jours et sont vérifiées à chaque requête. Les comptes
+INVITED/DISABLED et les sessions révoquées sont refusés avec la même réponse 401.
+Login est limité à 10 appels/minute/IP. Le stockage mémoire suppose une instance.
+
 ## Premier administrateur
 
 Après les migrations : `npm run auth:bootstrap-admin`. Un terminal interactif est

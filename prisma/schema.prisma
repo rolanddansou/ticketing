@@ -44,6 +44,17 @@ model User {
   createdTickets  Ticket[] @relation("TicketCreator")
   assignedTickets Ticket[] @relation("TicketAssignee")
   resolvedTickets Ticket[] @relation("TicketResolver")
+  sessions        AuthSession[]
+}
+
+model AuthSession {
+  id        String @id @default(uuid()) @db.Uuid
+  userId    String @db.Uuid
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  @@index([userId])
 }
 
 model Ticket {

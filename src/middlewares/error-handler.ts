@@ -1,5 +1,6 @@
 import type { ErrorRequestHandler } from "express";
 import { ZodError } from "zod";
+import { HttpError } from "../modules/auth/errors.js";
 import { TicketNotFoundError, TicketUserReferenceError } from "../modules/tickets/ticket.repository.js";
 
 export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, next) => {
@@ -12,6 +13,10 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, nex
     res.status(400).json({ error: { message: "Requête invalide", issues: error.issues.map(issue => ({
       path: issue.path.join("."), message: issue.message,
     })) } });
+    return;
+  }
+  if (error instanceof HttpError) {
+    res.status(error.status).json({ error: { message: error.message } });
     return;
   }
   if (error instanceof TicketNotFoundError) {
