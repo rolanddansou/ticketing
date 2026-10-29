@@ -2,6 +2,61 @@
 
 API Express 5, TypeScript strict et Prisma 7, sans Docker, avec un module de tickets de support.
 
+Le projet fournit la persistance et les contrats nécessaires pour créer, modifier,
+consulter et lister des tickets. Ces opérations sont disponibles dans le repository ;
+la seule route HTTP actuellement exposée est `GET /health`.
+
+## Ce qui est réalisé
+
+- Serveur Express avec parsing JSON limité à 1 Mo, réponses d'erreur JSON et gestion des routes inconnues.
+- Configuration d'environnement chargée avec dotenv et validée par Zod.
+- Connexion PostgreSQL via Prisma et `@prisma/adapter-pg`, vérifiée avant le démarrage HTTP.
+- Arrêt du serveur et fermeture de Prisma sur SIGINT/SIGTERM.
+- Modèle Ticket, enums de statut/priorité et migration SQL initiale.
+- DTO indépendants de Prisma et validation à l'entrée des méthodes du repository.
+- Interface du repository et implémentation Prisma avec pagination, filtres et mapping des dates.
+- Tests des DTO et tests d'intégration sur PostgreSQL avec schéma isolé par exécution.
+- Dépôt Git local sur `main`, `.gitignore` et normalisation des fins de ligne avec `.gitattributes`.
+
+Les routes HTTP des tickets, l'authentification, la couche service et la suppression
+de tickets ne sont pas encore implémentées. Aucun déploiement ni workflow GitHub Actions
+n'est configuré.
+
+## Stack et organisation
+
+| Outil | Rôle |
+| --- | --- |
+| Node.js 24, npm | Exécution et gestion des dépendances |
+| TypeScript strict, ESM / NodeNext | Typage et compilation |
+| Express 5 | Serveur HTTP |
+| PostgreSQL, Prisma 7 | Stockage, migrations et accès aux données |
+| Zod | Validation des entrées et de la configuration |
+| tsx, runner natif Node | Développement et tests |
+
+```text
+prisma/
+  schema.prisma             # Modèle et enums
+  migrations/               # Historique SQL
+src/
+  config/env.ts             # Configuration validée
+  lib/prisma.ts             # Client Prisma partagé
+  middlewares/              # Gestion des erreurs HTTP
+  modules/tickets/
+    ticket.dto.ts           # DTO et schémas Zod
+    ticket.repository.ts    # Interface et erreur métier
+    prisma-ticket.repository.ts
+    index.ts                # Instance du repository
+  routes/health.ts
+  app.ts                    # Composition Express
+  server.ts                 # Démarrage et arrêt
+tests/                      # Tests DTO et repository
+prisma.config.ts            # Configuration CLI Prisma
+```
+
+Le modèle Prisma décrit le stockage. Les DTO décrivent les entrées et sorties
+indépendamment du stockage. L'interface du repository définit les opérations ;
+son implémentation Prisma réalise les requêtes et convertit les résultats en DTO.
+
 ## Prérequis
 
 - Node.js 24 (voir `.nvmrc`) et npm.
@@ -45,6 +100,8 @@ spéciaux du mot de passe dans l'URL. `NODE_ENV` accepte development, test ou pr
 | `npm run build` | Génération Prisma et compilation dans dist |
 | `npm start` | Serveur compilé |
 | `npm run typecheck` | Génération Prisma et contrôle TypeScript |
+| `npm test` | Tests de validation des DTO |
+| `npm run test:integration` | Tests du repository sur PostgreSQL dédié |
 | `npm run db:generate` | Génération du client dans src/generated/prisma |
 | `npm run db:migrate` | Création/application d'une migration de développement (nom demandé) |
 | `npm run db:deploy` | Application des migrations versionnées |
@@ -56,6 +113,20 @@ Le modèle Ticket et sa migration initiale sont fournis. Après modification de
 migrations. En production, appliquer `db:deploy` avant `npm start`.
 
 ## Contrats tickets
+
+### Champs du ticket
+
+| Champ | Type exposé | Règles |
+| --- | --- | --- |
+| `id` | `string` (UUID) | Généré automatiquement, non modifiable |
+| `title` | `string` | Obligatoire en création, trimé, 1 à 200 caractères |
+| `description` | `string \| null` | Facultative, `null` par défaut |
+| `status` | `OPEN \| IN_PROGRESS \| CLOSED` | `OPEN` par défaut |
+| `priority` | `LOW \| MEDIUM \| HIGH` | `MEDIUM` par défaut |
+| `createdAt` | `string` ISO 8601 | Générée automatiquement |
+| `updatedAt` | `string` ISO 8601 | Actualisée à chaque modification |
+
+### Séparation et signatures
 
 Le module `src/modules/tickets` sépare les DTO Zod, l'interface `TicketRepository`
 et son implémentation `PrismaTicketRepository`. Aucune route métier n'est exposée.
@@ -86,6 +157,30 @@ Une page hors résultats conserve le total et retourne `items: []`.
 Seule l'absence du ticket est traduite en erreur métier pour Update ; les autres
 erreurs techniques se propagent. Aucun type d'erreur Prisma ne fait partie du contrat.
 
+### Exemple d'utilisation dans le code
+
+```ts
+import { ticketRepository } from "./modules/tickets/index.js";
+
+const ticket = await ticketRepository.create({
+  title: "Impossible de se connecter",
+  description: "La page de connexion retourne une erreur.",
+  priority: "HIGH",
+});
+
+await ticketRepository.update(ticket.id, { status: "IN_PROGRESS" });
+const found = await ticketRepository.get(ticket.id);
+const page = await ticketRepository.listing({
+  page: 1,
+  limit: 20,
+  status: "IN_PROGRESS",
+  priority: "HIGH",
+});
+```
+
+Cet exemple correspond à un appel depuis un fichier placé dans `src/`, après
+configuration de `DATABASE_URL` et application des migrations.
+
 ## Tests
 
 ```powershell
@@ -99,6 +194,12 @@ dans `.env` (voir `.env.example`), puis lancer `npm run test:integration`.
 Cette variable est obligatoire : aucun repli sur `DATABASE_URL`.
 Le rôle de test doit pouvoir créer des schémas. Chaque exécution crée un schéma
 UUID isolé, y applique les migrations, puis supprime uniquement ce schéma.
+Exemple de création de la base de test, depuis un compte PostgreSQL administrateur :
+
+```sql
+CREATE DATABASE ticketing_test OWNER ticketing;
+```
+
 Les tests couvrent le cycle du repository, validation, valeurs par défaut, erreurs,
 mapping des dates, filtres combinés, pagination et ordre déterministe.
 
@@ -121,3 +222,16 @@ Invoke-RestMethod http://localhost:3000/health
 ```
 
 Les secrets `.env`, le client généré, les dépendances et `dist` sont ignorés par Git.
+
+## Exécution du build
+
+Après configuration de l'environnement et installation des dépendances :
+
+```powershell
+npm run build
+npm run db:deploy
+npm start
+```
+
+Le code compilé est généré dans `dist/`. La commande `db:deploy` applique uniquement
+les migrations existantes ; la création de nouvelles migrations se fait en développement.
