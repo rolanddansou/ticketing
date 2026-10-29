@@ -14,7 +14,12 @@ export class PrismaOutboxRepository implements OutboxRepository {
     } });
     return result.count ? { ...item, payload: item.payload, attempts: item.attempts + 1, lockToken } : null;
   }
-  async isValid(item: OutboxItem, now: Date): Promise<boolean> { return item.expiresAt > now; }
+  async isValid(item: OutboxItem, now: Date): Promise<boolean> {
+    if (item.expiresAt <= now) return false;
+    if (!item.actionTokenId) return true;
+    const token = await this.client.actionToken.findUnique({ where: { id: item.actionTokenId }, include: { user: true } });
+    return !!token && !token.consumedAt && token.expiresAt > now && token.user.status === (token.type === "INVITATION" ? "INVITED" : "ACTIVE");
+  }
   async finish(item: OutboxItem, now: Date, sent: boolean): Promise<void> {
     await this.client.emailOutbox.updateMany({ where: { id: item.id, lockToken: item.lockToken }, data: {
       payload: null, lockToken: null, lockedUntil: null, ...(sent ? { deliveredAt: now } : { abandonedAt: now }),

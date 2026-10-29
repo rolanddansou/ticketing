@@ -6,10 +6,18 @@ import type { UserRepository } from "../modules/users/user.repository.js";
 import { listUsersSchema, userIdSchema } from "../modules/users/user.dto.js";
 import { authenticate, requireRoles } from "../middlewares/authenticate.js";
 import { HttpError } from "../modules/auth/errors.js";
+import type { InvitationService } from "../modules/auth/invitation.service.js";
 
-export function createUsersRouter(auth: AuthService, admin: AdminService, users: UserRepository): Router {
+export function createUsersRouter(auth: AuthService, admin: AdminService, users: UserRepository, invitations?: InvitationService): Router {
   const router = Router();
   router.use(authenticate(auth), requireRoles("SUPER_ADMIN"));
+  if (invitations) {
+    router.post("/invitations", async (req, res) => { await invitations.invite(res.locals.identity!.user.id, req.body); res.sendStatus(202); });
+    router.post("/:id/resend-invitation", async (req, res) => {
+      z.strictObject({}).parse(req.body ?? {});
+      await invitations.resend(res.locals.identity!.user.id, req.params.id); res.sendStatus(202);
+    });
+  }
   router.post("/", async (req, res) => {
     const user = await admin.create(res.locals.identity!.user.id, req.body);
     res.location(`/users/${user.id}`).status(201).json(user);

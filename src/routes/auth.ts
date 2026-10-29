@@ -5,12 +5,13 @@ import { loginSchema } from "../modules/auth/auth.dto.js";
 import { authenticate } from "../middlewares/authenticate.js";
 import { csrf, clearRefresh, setRefresh, readRefresh, defaultBrowser, type BrowserConfig } from "../middlewares/browser-security.js";
 import { unauthorized } from "../modules/auth/errors.js";
+import type { InvitationService } from "../modules/auth/invitation.service.js";
 
 export const limitRequests = (limit: number, windowMs: number) => rateLimit({
   windowMs, limit, standardHeaders: "draft-8", legacyHeaders: false,
   message: { error: { message: "Trop de tentatives, réessayez plus tard" } },
 });
-export function createAuthRouter(service: AuthService, browser: BrowserConfig = defaultBrowser): Router {
+export function createAuthRouter(service: AuthService, browser: BrowserConfig = defaultBrowser, invitations?: InvitationService): Router {
   const router = Router();
   router.use((_req, res, next) => { res.set("Cache-Control", "no-store"); next(); });
   router.post("/login", limitRequests(10, 60_000), async (req, res) => {
@@ -35,5 +36,8 @@ export function createAuthRouter(service: AuthService, browser: BrowserConfig = 
     await service.logoutAll(res.locals.identity!.user.id); clearRefresh(res, browser); res.sendStatus(204);
   });
   router.get("/me", authenticate(service), (_req, res) => { res.json(res.locals.identity!.user); });
+  if (invitations) router.post("/accept-invitation", limitRequests(10, 15 * 60000), async (req, res) => {
+    await invitations.accept(req.body); res.sendStatus(204);
+  });
   return router;
 }

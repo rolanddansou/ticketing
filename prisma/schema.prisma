@@ -45,6 +45,7 @@ model User {
   assignedTickets Ticket[] @relation("TicketAssignee")
   resolvedTickets Ticket[] @relation("TicketResolver")
   sessions        AuthSession[]
+  actionTokens    ActionToken[]
 }
 
 model AuthSession {
@@ -73,6 +74,7 @@ model EmailOutbox {
   id String @id @default(uuid()) @db.Uuid
   payload String?
   actionTokenId String? @db.Uuid
+  actionToken ActionToken? @relation(fields: [actionTokenId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   availableAt DateTime @default(now())
   attempts Int @default(0)
@@ -81,6 +83,24 @@ model EmailOutbox {
   deliveredAt DateTime?
   abandonedAt DateTime?
   @@index([availableAt, lockedUntil])
+}
+
+enum ActionTokenType {
+  INVITATION
+  PASSWORD_RESET
+}
+
+model ActionToken {
+  id String @id @default(uuid()) @db.Uuid
+  hash String @unique
+  type ActionTokenType
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  consumedAt DateTime?
+  emails EmailOutbox[]
+  @@index([userId, type])
+  @@index([expiresAt])
 }
 
 model Ticket {

@@ -3,6 +3,7 @@ import { HttpError } from "../auth/errors.js";
 import { lockUser, publicUser } from "../auth/prisma-auth.repository.js";
 import type { AdminRepository } from "./admin.repository.js";
 import type { CreateUserDto, UpdateUserDto, UserDto } from "./user.dto.js";
+import { invalidateLinks } from "../auth/prisma-action.repository.js";
 
 export async function requireAdmin(tx: Prisma.TransactionClient, actorId: string) {
   const actor = await tx.user.findUnique({ where: { id: actorId } });
@@ -42,6 +43,7 @@ export class PrismaAdminRepository implements AdminRepository {
           if (await tx.user.count({ where: { role: "SUPER_ADMIN", status: "ACTIVE" } }) <= 1) throw new HttpError(409, "Le dernier Super Admin actif doit être conservé");
         }
         if (input.email && input.email !== current.email || input.role && input.role !== current.role || enabled === false) await revokeSecurity(tx, id);
+        if (input.email && input.email !== current.email || enabled === false) await invalidateLinks(tx, id);
         return publicUser(await tx.user.update({ where: { id }, data: { ...input, status } }));
       });
     } catch (error) { mapError(error); }

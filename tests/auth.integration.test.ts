@@ -13,6 +13,12 @@ import { errorHandler } from "../src/middlewares/error-handler.js";
 import { AdminService } from "../src/modules/users/admin.service.js";
 import { PrismaAdminRepository } from "../src/modules/users/prisma-admin.repository.js";
 import { createUsersRouter } from "../src/routes/users.js";
+import { InvitationService } from "../src/modules/auth/invitation.service.js";
+import { PrismaActionRepository } from "../src/modules/auth/prisma-action.repository.js";
+import { EmailEncryption } from "../src/modules/email/encryption.js";
+import { FakeEmailProvider } from "../src/modules/email/email-provider.js";
+import { PrismaOutboxRepository } from "../src/modules/email/prisma-outbox.repository.js";
+import { OutboxWorker } from "../src/modules/email/worker.js";
 let db: Awaited<ReturnType<typeof testDatabase>>;
 before(async () => { db = await testDatabase(); });
 after(async () => { await db?.close(); });
@@ -124,4 +130,44 @@ test("admin management revokes sessions and preserves the last active admin conc
   ]);
   assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
   assert.equal(await db.prisma.user.count({ where: { role: "SUPER_ADMIN", status: "ACTIVE" } }), 1);
+});
+
+test("invitation is transactional, resend invalidates old links, activation is single-use", async () => {
+  const admin = await db.prisma.user.findFirstOrThrow({ where: { role: "SUPER_ADMIN", status: "ACTIVE" } });
+  const hasher = new Argon2PasswordHasher();
+  const encryption = new EmailEncryption("ab".repeat(32));
+  const invitations = new InvitationService(new PrismaActionRepository(db.prisma), hasher, encryption, "https://frontend.example.com");
+  await invitations.invite(admin.id, { name: "Invited", email: "invited@example.com" });
+  await assert.rejects(invitations.invite(admin.id, { name: "Dup", email: "invited@example.com" }));
+  const user = await db.prisma.user.findUniqueOrThrow({ where: { email: "invited@example.com" } });
+  const getToken = async () => {
+    const mail = await db.prisma.emailOutbox.findFirstOrThrow({ where: { payload: { not: null }, actionToken: { userId: user.id, consumedAt: null } } });
+    const link = encryption.decrypt(mail.payload!).text.split(" : ")[1];
+    return new URLSearchParams(new URL(link).hash.slice(1)).get("token")!;
+  };
+  const firstToken = await getToken();
+  const password = "An invited password 123";
+  await invitations.resend(admin.id, user.id);
+  await assert.rejects(invitations.accept({ token: firstToken, password, confirmPassword: password }));
+  const token = await getToken();
+  const provider = new FakeEmailProvider(); provider.fail = true;
+  const worker = new OutboxWorker(new PrismaOutboxRepository(db.prisma), provider, encryption);
+  const log = console.error; console.error = () => {};
+  try { await worker.tick(); } finally { console.error = log; }
+  assert.equal((await db.prisma.user.findUniqueOrThrow({ where: { id: user.id } })).status, "INVITED");
+  provider.fail = false; await worker.tick(new Date(Date.now() + 61000));
+  assert.equal(provider.messages.length, 1);
+  const results = await Promise.allSettled([invitations.accept({ token, password, confirmPassword: password }), invitations.accept({ token, password, confirmPassword: password })]);
+  assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
+  assert.equal((await db.prisma.user.findUniqueOrThrow({ where: { id: user.id } })).status, "ACTIVE");
+  assert.equal(await db.prisma.authSession.count({ where: { userId: user.id } }), 0);
+  const auth = new AuthService(new PrismaAuthRepository(db.prisma), hasher, new JwtTokens(jwtConfig));
+  await auth.login(user.email, password);
+  await assert.rejects(invitations.resend(admin.id, user.id));
+  await invitations.invite(admin.id, { name: "Expired", email: "expired-invite@example.com" });
+  const expired = await db.prisma.user.findUniqueOrThrow({ where: { email: "expired-invite@example.com" } });
+  const mail = await db.prisma.emailOutbox.findFirstOrThrow({ where: { actionToken: { userId: expired.id } } });
+  const expiredToken = new URLSearchParams(new URL(encryption.decrypt(mail.payload!).text.split(" : ")[1]).hash.slice(1)).get("token")!;
+  await db.prisma.actionToken.updateMany({ where: { userId: expired.id }, data: { expiresAt: new Date(0) } });
+  await assert.rejects(invitations.accept({ token: expiredToken, password, confirmPassword: password }));
 });

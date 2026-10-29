@@ -1,5 +1,15 @@
 # Authentification
 
+## Invitations
+
+POST /users/invitations (SUPER_ADMIN) accepte name/email/role et retourne 202.
+POST /users/:id/resend-invitation renvoie un lien aux comptes INVITED seulement.
+Le lien FRONTEND_URL/accept-invitation#token=... est valable 48 h et à usage unique.
+Le frontend lit le fragment et POST /auth/accept-invitation avec token/password/
+confirmPassword. Réponse 204 : l'utilisateur peut se connecter, aucune session
+n'est créée automatiquement. Renvoi, changement d'email ou désactivation invalident
+les anciens liens et emails en attente. Compte + jeton + outbox sont transactionnels.
+
 ## Emails
 
 SMTP_HOST/PORT/SECURE/FROM sont requis, SMTP_USER/PASSWORD si authentification.
