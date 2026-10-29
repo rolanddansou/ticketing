@@ -1,5 +1,16 @@
 # Authentification
 
+## Emails
+
+SMTP_HOST/PORT/SECURE/FROM sont requis, SMTP_USER/PASSWORD si authentification.
+OUTBOX_ENCRYPTION_KEY : clé dédiée de 32 octets encodée en hexadécimal (64 caractères),
+à conserver pour déchiffrer les emails en attente. Ne pas réutiliser JWT_SECRET.
+L'interface EmailProvider permet de remplacer SMTP ; FakeEmailProvider sert aux tests.
+L'outbox chiffre destinataire et contenu avec AES-256-GCM. Worker intégré au serveur,
+lease de 60 s et cinq essais, espacés de 1/5/15/60 minutes. Les messages expirés ou
+abandonnés sont purgés, comme les messages envoyés. Livraison au moins une fois :
+une interruption après acceptation SMTP peut produire un doublon au redémarrage.
+
 ## Administration (Bearer SUPER_ADMIN)
 
 - POST /users : name, email, role (EMPLOYEE par défaut), password, confirmPassword ; 201.

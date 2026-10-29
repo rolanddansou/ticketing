@@ -69,6 +69,20 @@ model RefreshToken {
   @@index([expiresAt])
 }
 
+model EmailOutbox {
+  id String @id @default(uuid()) @db.Uuid
+  payload String?
+  actionTokenId String? @db.Uuid
+  expiresAt DateTime
+  availableAt DateTime @default(now())
+  attempts Int @default(0)
+  lockedUntil DateTime?
+  lockToken String? @db.Uuid
+  deliveredAt DateTime?
+  abandonedAt DateTime?
+  @@index([availableAt, lockedUntil])
+}
+
 model Ticket {
   id           String         @id @default(uuid()) @db.Uuid
   title        String         @db.VarChar(200)

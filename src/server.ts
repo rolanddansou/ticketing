@@ -1,10 +1,12 @@
 import { app } from "./app.js";
 import { env } from "./config/env.js";
 import { prisma } from "./lib/prisma.js";
+import { emailWorker } from "./modules/email/index.js";
 
 try {
   await prisma.$connect();
   await prisma.$queryRaw`SELECT 1`;
+  emailWorker.start();
   const server = app.listen(env.PORT, () => {
     console.info(`API démarrée sur le port ${env.PORT}`);
   });
@@ -19,7 +21,7 @@ try {
     }, 10_000);
     timeout.unref();
     server.close(() => {
-      void prisma.$disconnect().then(() => {
+      void emailWorker.stop().then(() => prisma.$disconnect()).then(() => {
         clearTimeout(timeout);
         process.exitCode = exitCode;
       }).catch(() => process.exit(1));
@@ -34,6 +36,7 @@ try {
   });
 } catch {
   console.error("Démarrage impossible : connexion PostgreSQL indisponible");
+  await emailWorker.stop().catch(() => undefined);
   await prisma.$disconnect().catch(() => undefined);
   process.exitCode = 1;
 }
