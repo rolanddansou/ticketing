@@ -54,7 +54,19 @@ model AuthSession {
   createdAt DateTime @default(now())
   expiresAt DateTime
   revokedAt DateTime?
+  refreshTokens RefreshToken[]
   @@index([userId])
+}
+
+model RefreshToken {
+  id String @id @default(uuid()) @db.Uuid
+  hash String @unique
+  sessionId String @db.Uuid
+  session AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  consumedAt DateTime?
+  @@index([sessionId])
+  @@index([expiresAt])
 }
 
 model Ticket {

@@ -1,5 +1,17 @@
 # Authentification
 
+## Sessions navigateur
+
+Login retourne uniquement le JWT dans le JSON ; refresh_token est un cookie
+HttpOnly, SameSite=Lax, Path=/auth, Secure en production. Sessions multiples,
+durée absolue de 30 jours. POST /auth/refresh renouvelle JWT/cookie et invalide le
+refresh précédent ; sa réutilisation révoque toute la session.
+POST /auth/logout ferme cette session, POST /auth/logout-all ferme toutes les
+sessions (Bearer requis). Ces trois routes exigent Origin correspondant à
+FRONTEND_URL et X-CSRF-Protection: 1. Le frontend utilise credentials: include.
+Frontend et API doivent être sur le même site ; HTTPS requis en production.
+TRUST_PROXY_HOPS=0 par défaut, à adapter uniquement aux proxies maîtrisés.
+
 ## Login
 
 Configurer JWT_SECRET (au moins 32 octets aléatoires), JWT_ISSUER et JWT_AUDIENCE.

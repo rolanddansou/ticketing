@@ -44,6 +44,8 @@ test("login and JWT enforce active users and database sessions", async () => {
     const response = await fetch(`${url}/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: user.email, password }) });
     assert.equal(response.status, 200);
     const body = await response.json();
+    assert.equal("refreshToken" in body, false);
+    assert.match(response.headers.get("set-cookie") ?? "", /HttpOnly/);
     assert.equal("passwordHash" in body.user, false);
     const headers = { Authorization: `Bearer ${body.accessToken}` };
     assert.equal((await fetch(`${url}/me`, { headers })).status, 200);
@@ -58,4 +60,33 @@ test("login and JWT enforce active users and database sessions", async () => {
   } finally {
     server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
   }
+});
+
+test("refresh rotation detects replay and concurrent reuse; logout revokes access", async () => {
+  const hasher = new Argon2PasswordHasher();
+  const password = "A refresh password 123";
+  const user = await db.prisma.user.create({ data: { name: "Refresh", email: "refresh@example.com", status: "ACTIVE", passwordHash: await hasher.hash(password) } });
+  const service = new AuthService(new PrismaAuthRepository(db.prisma), hasher, new JwtTokens(jwtConfig));
+  const first = await service.login(user.email, password);
+  const second = await service.refresh(first.refreshToken);
+  assert.notEqual(first.refreshToken, second.refreshToken);
+  assert.equal(second.refreshExpiresAt.getTime(), first.refreshExpiresAt.getTime());
+  await assert.rejects(service.refresh(first.refreshToken));
+  await assert.rejects(service.authenticate(second.accessToken));
+  const concurrent = await service.login(user.email, password);
+  const results = await Promise.allSettled([service.refresh(concurrent.refreshToken), service.refresh(concurrent.refreshToken)]);
+  assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
+  const success = results.find(result => result.status === "fulfilled");
+  assert.ok(success && success.status === "fulfilled");
+  await assert.rejects(service.authenticate(success.value.accessToken));
+  const session1 = await service.login(user.email, password);
+  const session2 = await service.login(user.email, password);
+  await service.logout(session1.refreshToken);
+  await assert.rejects(service.authenticate(session1.accessToken));
+  assert.equal((await service.authenticate(session2.accessToken)).user.id, user.id);
+  await service.logoutAll(user.id);
+  await assert.rejects(service.authenticate(session2.accessToken));
+  const expired = await service.login(user.email, password);
+  await db.prisma.authSession.updateMany({ where: { userId: user.id }, data: { expiresAt: new Date(0) } });
+  await assert.rejects(service.refresh(expired.refreshToken));
 });

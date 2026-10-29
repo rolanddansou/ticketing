@@ -1,4 +1,6 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
+export const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
+export const newToken = () => randomBytes(32).toString("base64url");
 import type { AuthRepository, Identity } from "./auth.repository.js";
 import type { PasswordHasher } from "./password.js";
 import { JwtTokens } from "./jwt.js";
@@ -13,10 +15,21 @@ export class AuthService {
     const credentials = await this.repository.findCredentials(email);
     const valid = await this.hasher.verify(credentials?.passwordHash ?? await this.dummyHash, password);
     if (!credentials?.passwordHash || !valid || credentials.user.status !== "ACTIVE") throw unauthorized();
-    const sessionId = await this.repository.createSession(credentials.user.id, credentials.passwordHash, new Date(Date.now() + 30 * 86400_000));
+    const refreshToken = newToken();
+    const refreshExpiresAt = new Date(Date.now() + 30 * 86400_000);
+    const sessionId = await this.repository.createSession(credentials.user.id, credentials.passwordHash, refreshExpiresAt, tokenHash(refreshToken));
     if (!sessionId) throw unauthorized();
-    return { accessToken: await this.tokens.sign(credentials.user.id, sessionId), tokenType: "Bearer", expiresIn: 900, user: credentials.user };
+    return { accessToken: await this.tokens.sign(credentials.user.id, sessionId), tokenType: "Bearer", expiresIn: 900, user: credentials.user, refreshToken, refreshExpiresAt };
   }
+  async refresh(token: string) {
+    const refreshToken = newToken();
+    const result = await this.repository.rotateRefresh(tokenHash(token), tokenHash(refreshToken));
+    if (!result) throw unauthorized();
+    return { accessToken: await this.tokens.sign(result.identity.user.id, result.identity.sessionId), tokenType: "Bearer", expiresIn: 900,
+      user: result.identity.user, refreshToken, refreshExpiresAt: result.expiresAt };
+  }
+  logout(token?: string) { return token ? this.repository.logout(tokenHash(token)) : Promise.resolve(); }
+  logoutAll(userId: string) { return this.repository.logoutAll(userId); }
   async authenticate(token: string): Promise<Identity> {
     const { userId, sessionId } = await this.tokens.verify(token);
     const identity = await this.repository.identity(userId, sessionId);
