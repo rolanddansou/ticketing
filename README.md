@@ -57,7 +57,8 @@ src/
     user.repository.ts      # Interface et erreurs métier
     prisma-user.repository.ts
     index.ts                # Instance partagée User
-  routes/health.ts
+  controllers/              # Handlers HTTP : auth, users, tickets, health
+  routes/                   # URLs, méthodes et middlewares
   app.ts                    # Composition Express
   server.ts                 # Démarrage et arrêt
 tests/                      # Tests DTO et repository
@@ -67,6 +68,12 @@ prisma.config.ts            # Configuration CLI Prisma
 Le modèle Prisma décrit le stockage. Les DTO décrivent les entrées et sorties
 indépendamment du stockage. L'interface du repository définit les opérations ;
 son implémentation Prisma réalise les requêtes et convertit les résultats en DTO.
+
+Les routes associent les URLs et méthodes HTTP aux controllers, avec les middlewares
+d'authentification, de permissions, de CSRF et de limitation des appels. Les controllers
+valident les entrées HTTP, appellent les services ou repositories injectés et construisent
+les réponses (statuts, JSON, cookies). Les règles métier restent dans les services et
+l'accès PostgreSQL dans les repositories. Les erreurs remontent au middleware central.
 
 ## Prérequis
 
