@@ -1,6 +1,8 @@
 import express from "express";
 import { sendApiError } from "./middlewares/api-error.js";
 import { globalRateLimit } from "./middlewares/rate-limit.js";
+import { createDocsRouter } from "./routes/docs.js";
+import { env } from "./config/env.js";
 
 import { errorHandler } from "./middlewares/error-handler.js";
 import { healthRouter } from "./routes/health.js";
@@ -30,6 +32,7 @@ app.use(cors(browserConfig));
 app.use(globalRateLimit());
 app.use(express.json({ limit: "1mb" }));
 app.use(healthRouter);
+app.use(createDocsRouter(env.NODE_ENV === "production"));
 const invitations = new InvitationService(new PrismaActionRepository(prisma), new Argon2PasswordHasher(), emailEncryption, authConfig.FRONTEND_URL);
 const recovery = new PasswordRecoveryService(new PrismaActionRepository(prisma), new Argon2PasswordHasher(), emailEncryption, authConfig.FRONTEND_URL);
 app.use("/auth", createAuthRouter(authService, browserConfig, invitations, recovery));

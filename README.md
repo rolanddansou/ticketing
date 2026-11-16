@@ -1,5 +1,9 @@
 # Ticketing API
 
+Le contrat OpenAPI est disponible sur `GET /openapi.json` et Swagger UI sur
+`/docs` dans tous les environnements. En production, l’interface désactive
+l’envoi de requêtes depuis Swagger. `npm run test:openapi` valide le contrat.
+
 Les fonctionnalités d'authentification sont documentées dans [AUTH.md](AUTH.md).
 
 API Express 5, TypeScript strict et Prisma 7, sans Docker, avec un module de tickets de support.
