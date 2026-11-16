@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Resolution } from "../ticket-agent-ia/repository.js";
 
 export const ticketStatusSchema = z.enum(["OPEN", "IN_PROGRESS", "CLOSED"]);
 export const ticketPrioritySchema = z.enum(["LOW", "MEDIUM", "HIGH"]);
@@ -58,6 +59,8 @@ export type UpdateTicketDto = z.input<typeof updateTicketSchema>;
 export type ListTicketsDto = z.input<typeof listTicketsSchema>;
 
 export interface TicketDto {
+  resolution?: Resolution;
+  aiProposal?: { draft: string };
   createdById: string | null;
   assignedToId: string | null;
   resolveById: string | null;

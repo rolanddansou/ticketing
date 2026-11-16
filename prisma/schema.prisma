@@ -134,8 +134,45 @@ model Ticket {
   createdBy    User?          @relation("TicketCreator", fields: [createdById], references: [id], onDelete: Restrict)
   assignedTo   User?          @relation("TicketAssignee", fields: [assignedToId], references: [id], onDelete: Restrict)
   resolveBy    User?          @relation("TicketResolver", fields: [resolveById], references: [id], onDelete: Restrict)
+  revision Int @default(0)
+  resolutionText String?
+  resolutionSource TicketResolutionSource?
+  resolvedAt DateTime?
+  resolutionProcedureId String?
+  aiJob TicketAiJob?
 
   @@index([createdById])
   @@index([assignedToId])
   @@index([resolveById])
+}
+
+enum TicketResolutionSource {
+  HUMAN
+  AI
+}
+
+enum TicketAiStatus {
+  PENDING
+  RUNNING
+  PROPOSED
+  RESOLVED
+  REJECTED
+  STALE
+  FAILED
+}
+
+model TicketAiJob {
+  ticketId    String @id @db.Uuid
+  ticket      Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  revision    Int
+  status      TicketAiStatus @default(PENDING)
+  attempts    Int @default(0)
+  availableAt DateTime @default(now())
+  leaseUntil  DateTime?
+  leaseToken  String? @db.Uuid
+  draft       String?
+  errorCode   String?
+
+  @@index([status, availableAt])
+  @@index([status, leaseUntil])
 }

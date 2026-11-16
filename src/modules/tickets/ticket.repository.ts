@@ -15,6 +15,12 @@ export class TicketUserReferenceError extends Error {
   }
 }
 
+export class TicketResolutionConflictError extends Error {
+  constructor() {
+    super("Le résolveur d’une résolution publiée ne peut pas être modifié");
+  }
+}
+
 export class TicketNotFoundError extends Error {
   constructor(public readonly ticketId: string) {
     super(`Ticket introuvable : ${ticketId}`);

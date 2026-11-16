@@ -7,6 +7,7 @@ import { env } from "./config/env.js";
 import { errorHandler } from "./middlewares/error-handler.js";
 import { healthRouter } from "./routes/health.js";
 import { createTicketsRouter } from "./routes/tickets.js";
+import { ticketAgentRepository, waitForTicketResult } from "./modules/ticket-agent-ia/index.js";
 import { ticketRepository } from "./modules/tickets/index.js";
 import { authService } from "./modules/auth/index.js";
 import { createAuthRouter } from "./routes/auth.js";
@@ -37,7 +38,7 @@ const invitations = new InvitationService(new PrismaActionRepository(prisma), ne
 const recovery = new PasswordRecoveryService(new PrismaActionRepository(prisma), new Argon2PasswordHasher(), emailEncryption, authConfig.FRONTEND_URL);
 app.use("/auth", createAuthRouter(authService, browserConfig, invitations, recovery));
 app.use("/users", createUsersRouter(authService, new AdminService(new PrismaAdminRepository(prisma), new Argon2PasswordHasher()), userRepository, invitations));
-app.use("/tickets", createTicketsRouter(ticketRepository, authenticate(authService)));
+app.use("/tickets", createTicketsRouter(ticketRepository, authenticate(authService), ticketAgentRepository, waitForTicketResult));
 app.use((_req, res) => {
   sendApiError(res, 404, "Route introuvable");
 });

@@ -2,7 +2,7 @@ import type { ErrorRequestHandler } from "express";
 import { sendApiError } from "./api-error.js";
 import { ZodError } from "zod";
 import { HttpError } from "../modules/auth/errors.js";
-import { TicketNotFoundError, TicketUserReferenceError } from "../modules/tickets/ticket.repository.js";
+import { TicketNotFoundError, TicketResolutionConflictError, TicketUserReferenceError } from "../modules/tickets/ticket.repository.js";
 
 export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, next) => {
   if (res.headersSent) {
@@ -26,6 +26,10 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, nex
   }
   if (error instanceof TicketUserReferenceError) {
     sendApiError(res, 422, error.message);
+    return;
+  }
+  if (error instanceof TicketResolutionConflictError) {
+    sendApiError(res, 409, error.message);
     return;
   }
 

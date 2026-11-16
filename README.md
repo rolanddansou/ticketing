@@ -1,5 +1,59 @@
 # Ticketing API
 
+## Assistance IA sur les tickets
+
+Le module `ai` expose `AiService.generateText` et `generateJson` avec un
+provider optionnel par appel. `ticket-agent-ia` utilise ce service pour traiter
+les nouveaux tickets ouverts en arrière-plan.
+
+Avec l’IA activée, `POST /tickets` attend jusqu’à 5 secondes après
+l’enregistrement. Si le résultat est prêt, le `201` contient la résolution
+publiée ou, pour le support, le brouillon. Après ce délai, le `201` renvoie
+le ticket créé et le worker poursuit le traitement. Le résultat est ensuite
+disponible via `GET /tickets/:id`.
+
+Appliquer la migration avec `npm run db:deploy`, puis régénérer le client avec
+`npm run db:generate`. Pour activer le worker, configurer par exemple :
+
+```dotenv
+TICKET_AI_ENABLED=true
+TICKET_AI_AUTONOMOUS=false
+AI_DEFAULT_PROVIDER=openai
+OPENAI_API_KEY=<clé>
+OPENAI_MODEL=<modèle compatible Chat Completions et JSON mode>
+```
+
+Pour DeepSeek, choisir `AI_DEFAULT_PROVIDER=deepseek` et renseigner
+`DEEPSEEK_API_KEY` et `DEEPSEEK_MODEL`. Redémarrer l’API après modification.
+Pour Google Gemini, choisir `AI_DEFAULT_PROVIDER=gemini` et renseigner
+`GEMINI_API_KEY` et `GEMINI_MODEL`. Le nom du modèle doit être accessible à
+la clé et compatible avec les réponses JSON.
+Les trois fournisseurs utilisent le SDK `openai` et leur endpoint
+Chat Completions respectif. Le worker gère les relances.
+Le titre et la description sont transmis au provider après un masquage partiel
+des motifs sensibles courants. Éviter de saisir des secrets dans ces champs.
+
+Le support consulte le brouillon via `GET /tickets/:id`, puis utilise
+`POST /tickets/:id/ai-proposal/accept` avec un objet vide ou un champ
+`resolutionText` pour publier le texte et fermer le ticket. La route
+`POST /tickets/:id/ai-proposal/reject` rejette le brouillon. Le créateur voit la
+résolution publiée dans le détail de son ticket.
+
+Pour activer la clôture autonome, définir `TICKET_AI_AUTONOMOUS=true` et
+versionner les procédures approuvées dans
+`src/modules/ticket-agent-ia/catalog.json`. Chaque entrée contient `id`,
+`title`, `description` (facultatif) et `resolutionText`. Le catalogue démarre
+vide. Le titre normalisé doit correspondre exactement, ainsi que la description
+si la procédure en définit une. Sans procédure applicable, l’agent IA produit
+un brouillon pour le support. Afficher les textes de résolution en texte brut.
+
+Avec un catalogue vide, `TICKET_AI_ALLOW_EMPTY_CATALOG_CLOSURE=true` permet de
+publier le texte généré et de fermer le ticket si le modèle indique que la réponse
+est complète. Cette option est désactivée par défaut et exige
+`TICKET_AI_AUTONOMOUS=true`. Si le catalogue contient des procédures, les règles
+de correspondance ci-dessus s’appliquent. Une clôture sans procédure laisse
+`resolution.procedureId` à `null`.
+
 GitHub Actions exécute le build, le typage et toutes les suites de tests sur
 chaque push et pull request, avec Node 24 et une instance PostgreSQL 18 dédiée.
 

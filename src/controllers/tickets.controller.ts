@@ -1,4 +1,5 @@
 import type { RequestHandler } from "express";
+import type { WaitForTicketResult } from "../modules/ticket-agent-ia/wait-for-result.js";
 import { createTicketSchema, updateTicketSchema, listTicketsSchema, ticketIdSchema } from "../modules/tickets/ticket.dto.js";
 import { TicketNotFoundError, type TicketRepository } from "../modules/tickets/ticket.repository.js";
 
@@ -12,13 +13,17 @@ interface TicketsController {
   get: RequestHandler;
 }
 
-export function createTicketsController(repository: TicketRepository): TicketsController {
+export function createTicketsController(repository: TicketRepository, waitForResult?: WaitForTicketResult): TicketsController {
   return {
     create: async (req, res) => {
       const user = res.locals.identity!.user;
       const data = (user.role === "USER" ? userCreateSchema : httpCreateSchema).parse(req.body);
       const ticket = await repository.create({ ...data, createdById: user.id });
-      res.location(`/tickets/${ticket.id}`).status(201).json(ticket);
+      const scope = user.role === "USER" ? { createdById: user.id } : undefined;
+      const updated = ticket.status === "OPEN"
+        ? await waitForResult?.(ticket.id, () => repository.get(ticket.id, scope))
+        : undefined;
+      res.location(`/tickets/${ticket.id}`).status(201).json(updated ?? ticket);
     },
     update: async (req, res) => {
       const id = ticketIdSchema.parse(req.params.id);

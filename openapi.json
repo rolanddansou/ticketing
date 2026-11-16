@@ -2530,7 +2530,7 @@
           "Tickets"
         ],
         "summary": "Créer un ticket",
-        "description": "Tous les rôles. USER ne peut fournir ni status, ni assignedToId, ni resolveById. createdById provient du compte connecté.",
+        "description": "Tous les rôles. USER ne peut fournir ni status, ni assignedToId, ni resolveById. createdById provient du compte connecté. Si l’IA est activée, la création d’un ticket ouvert attend le résultat pendant 5 secondes maximum. Le 201 peut inclure la résolution publiée, ou le brouillon pour le support. Après le délai, consulter GET /tickets/{id}.",
         "security": [
           {
             "bearerAuth": []
@@ -2767,7 +2767,7 @@
           "Tickets"
         ],
         "summary": "Consulter un ticket",
-        "description": "USER voit uniquement ses tickets. SUPER_ADMIN, ADMIN et AGENT voient tous les tickets.",
+        "description": "USER voit uniquement ses tickets. SUPER_ADMIN, ADMIN et AGENT voient tous les tickets. La résolution publiée est visible selon ces mêmes droits. Le brouillon IA est réservé au support.",
         "security": [
           {
             "bearerAuth": []
@@ -2871,7 +2871,7 @@
           "Tickets"
         ],
         "summary": "Modifier un ticket",
-        "description": "SUPER_ADMIN, ADMIN et AGENT uniquement.",
+        "description": "SUPER_ADMIN, ADMIN et AGENT uniquement. Le résolveur d’une résolution publiée est protégé. Rouvrir le ticket efface la résolution et son attribution.",
         "security": [
           {
             "bearerAuth": []
@@ -3059,6 +3059,264 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "L’attribution d’une résolution publiée ne peut pas être modifiée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tickets/{id}/ai-proposal/accept": {
+      "post": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Accepter une proposition IA et fermer le ticket",
+        "description": "Réservé à AGENT, ADMIN et SUPER_ADMIN.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "resolutionText": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8000,
+                    "description": "Texte de remplacement facultatif. Sans ce champ, le brouillon est publié."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Requête invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Accès interdit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Trop de requêtes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "description": "Secondes avant de réessayer"
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Proposition absente, déjà traitée ou périmée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Décision enregistrée"
+          }
+        }
+      }
+    },
+    "/tickets/{id}/ai-proposal/reject": {
+      "post": {
+        "tags": [
+          "Tickets"
+        ],
+        "summary": "Rejeter une proposition IA",
+        "description": "Réservé à AGENT, ADMIN et SUPER_ADMIN.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Requête invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Accès interdit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ressource introuvable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Trop de requêtes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "description": "Secondes avant de réessayer"
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Proposition absente, déjà traitée ou périmée",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Décision enregistrée"
           }
         }
       }
@@ -3237,6 +3495,51 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "resolution": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "text",
+              "source",
+              "resolvedAt",
+              "procedureId"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "HUMAN",
+                  "AI"
+                ]
+              },
+              "resolvedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "procedureId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "aiProposal": {
+            "type": "object",
+            "description": "Brouillon affiché uniquement au support sur le détail du ticket.",
+            "additionalProperties": false,
+            "required": [
+              "draft"
+            ],
+            "properties": {
+              "draft": {
+                "type": "string"
+              }
+            }
           }
         },
         "required": [
