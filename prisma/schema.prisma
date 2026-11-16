@@ -171,6 +171,7 @@ model TicketAiJob {
   leaseUntil  DateTime?
   leaseToken  String? @db.Uuid
   draft       String?
+  requiresResolutionText Boolean @default(false)
   errorCode   String?
 
   @@index([status, availableAt])

@@ -44,6 +44,7 @@ test("out-of-scope and uncertain tickets never publish a generated solution", as
     } } }, "openai");
     const proposal = await new TicketAgentIa(ai, [], true, true).analyze(ticket);
     assert.equal("approved" in proposal, false);
+    assert.equal(proposal.requiresResolutionText, true);
     assert.notEqual(proposal.draft, "Generated solution");
   }
 });

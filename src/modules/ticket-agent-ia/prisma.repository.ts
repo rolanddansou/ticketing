@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { PrismaClient, Prisma } from "../../generated/prisma/client.js";
 import { TicketNotFoundError } from "../tickets/ticket.repository.js";
-import { ProposalConflictError, type TicketAgentRepository, type ClaimedJob, type Proposal } from "./repository.js";
+import { ProposalConflictError, ProposalResolutionRequiredError, type TicketAgentRepository, type ClaimedJob, type Proposal } from "./repository.js";
 
 const release = { leaseUntil: null, leaseToken: null };
 const owns = (job: ClaimedJob, now: Date) => ({
@@ -43,7 +43,7 @@ export class PrismaTicketAgentRepository implements TicketAgentRepository {
     await this.db.$transaction(async tx => {
       const claimed = await tx.ticketAiJob.updateMany({
         where: owns(job, now),
-        data: { ...release, status: proposal.approved ? "RESOLVED" : "PROPOSED", draft: proposal.approved ? null : proposal.draft, errorCode: null },
+        data: { ...release, status: proposal.approved ? "RESOLVED" : "PROPOSED", draft: proposal.approved ? null : proposal.draft, requiresResolutionText: proposal.requiresResolutionText ?? false, errorCode: null },
       });
       if (!claimed.count) return;
       if (!await this.apply(tx, job.ticketId, job.revision, proposal.approved && {
@@ -69,6 +69,12 @@ export class PrismaTicketAgentRepository implements TicketAgentRepository {
         throw new ProposalConflictError();
       }
       if (job.status !== "PROPOSED" || !job.draft) throw new ProposalConflictError();
+      if (decision === "accept" && job.requiresResolutionText && !text?.trim()) {
+        if (!await tx.ticket.findFirst({ where: eligibleTicket(ticketId, job.revision), select: { id: true } })) {
+          throw new ProposalConflictError();
+        }
+        throw new ProposalResolutionRequiredError();
+      }
       const changed = await tx.ticketAiJob.updateMany({
         where: { ticketId, status: "PROPOSED" },
         data: { status: decision === "accept" ? "RESOLVED" : "REJECTED", draft: null },

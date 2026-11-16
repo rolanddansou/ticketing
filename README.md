@@ -35,7 +35,9 @@ des motifs sensibles courants. Éviter de saisir des secrets dans ces champs.
 
 Le support consulte le brouillon via `GET /tickets/:id`, puis utilise
 `POST /tickets/:id/ai-proposal/accept` avec un objet vide ou un champ
-`resolutionText` pour publier le texte et fermer le ticket. La route
+`resolutionText` pour publier le texte et fermer le ticket. Pour un brouillon hors périmètre,
+ambigu ou déjà en attente lors de la migration, esolutionText est obligatoire
+(HTTP 400 si absent). La route
 `POST /tickets/:id/ai-proposal/reject` rejette le brouillon. Le créateur voit la
 résolution publiée dans le détail de son ticket.
 

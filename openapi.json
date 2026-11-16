@@ -3108,7 +3108,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 8000,
-                    "description": "Texte de remplacement facultatif. Sans ce champ, le brouillon est publié."
+                    "description": "Texte de remplacement obligatoire pour un brouillon hors périmètre, ambigu ou déjà en attente lors de la migration. Pour les autres brouillons, ce champ est facultatif."
                   }
                 }
               }

@@ -1,7 +1,7 @@
 import type { RequestHandler } from "express";
 import { z } from "zod";
 import { HttpError } from "../modules/auth/errors.js";
-import { ProposalConflictError, type TicketAgentRepository } from "../modules/ticket-agent-ia/repository.js";
+import { ProposalConflictError, ProposalResolutionRequiredError, type TicketAgentRepository } from "../modules/ticket-agent-ia/repository.js";
 import { ticketIdSchema } from "../modules/tickets/ticket.dto.js";
 
 const acceptSchema = z.strictObject({ resolutionText: z.string().trim().min(1).max(8000).optional() });
@@ -17,6 +17,7 @@ export function createTicketProposalController(repository: TicketAgentRepository
       await repository.decide(id, res.locals.identity!.user.id, decision, text);
     } catch (error) {
       if (error instanceof ProposalConflictError) throw new HttpError(409, "Proposition indisponible ou périmée");
+      if (error instanceof ProposalResolutionRequiredError) throw new HttpError(400, "Un texte de résolution est requis pour accepter cette proposition");
       throw error;
     }
     res.sendStatus(204);

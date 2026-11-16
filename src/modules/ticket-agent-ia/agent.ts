@@ -44,10 +44,10 @@ export class TicketAgentIa {
       user: JSON.stringify({ title: redact(ticket.title), description: redact(ticket.description ?? "").slice(0, 4000) }),
     }, answerSchema);
     if (result.data.scope === "OUT_OF_SCOPE") {
-      return { draft: "Cette demande sort du périmètre du support informatique. À orienter vers le service compétent." };
+      return { requiresResolutionText: true, draft: "Cette demande sort du périmètre du support informatique. À orienter vers le service compétent." };
     }
     if (result.data.scope === "UNCERTAIN") {
-      return { draft: "Préciser le problème informatique rencontré avant de proposer une résolution." };
+      return { requiresResolutionText: true, draft: "Préciser le problème informatique rencontré avant de proposer une résolution." };
     }
     const approved = this.autonomous ? candidates.find(item => item.id === result.data.procedureId) : undefined;
     const draft = redact(result.data.draft);

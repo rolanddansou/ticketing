@@ -6,7 +6,7 @@ import { AiError, AiService } from "../src/modules/ai/ai.service.js";
 import { TicketAgentIa } from "../src/modules/ticket-agent-ia/agent.js";
 import { TicketAiWorker } from "../src/modules/ticket-agent-ia/worker.js";
 import { PrismaTicketAgentRepository } from "../src/modules/ticket-agent-ia/prisma.repository.js";
-import { ProposalConflictError } from "../src/modules/ticket-agent-ia/repository.js";
+import { ProposalConflictError, ProposalResolutionRequiredError } from "../src/modules/ticket-agent-ia/repository.js";
 import { PrismaTicketRepository } from "../src/modules/tickets/prisma-ticket.repository.js";
 import { TicketResolutionConflictError } from "../src/modules/tickets/ticket.repository.js";
 import { createTicketsRouter } from "../src/routes/tickets.js";
@@ -103,6 +103,16 @@ test("Ticket AI queues, retries, recovers, scopes proposals and closes safely", 
     await manual.tick();
     await queue.decide(acceptedDraft.id, reviewer.id, "accept");
     assert.equal((await repo.get(acceptedDraft.id))?.resolution?.text, "Draft response");
+
+    const scoped = await create("Needs clarification");
+    const job = await queue.claim(new Date());
+    assert.ok(job);
+    assert.equal(job.ticketId, scoped.id);
+    await queue.finish(job, { draft: "Please clarify", requiresResolutionText: true }, new Date());
+    await assert.rejects(queue.decide(scoped.id, reviewer.id, "accept"), ProposalResolutionRequiredError);
+    assert.equal((await repo.get(scoped.id))?.status, "OPEN");
+    await queue.decide(scoped.id, reviewer.id, "accept", "Verified resolution");
+    assert.equal((await repo.get(scoped.id))?.resolution?.text, "Verified resolution");
 
     const eligible = await create("  Known ISSUE ", "Exact match");
     await auto.tick();

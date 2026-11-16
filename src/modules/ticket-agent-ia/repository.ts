@@ -6,7 +6,7 @@ export interface ClaimedJob {
   title: string;
   description: string | null;
 }
-export interface Proposal { draft: string; approved?: { text: string; procedureId: string | null } }
+export interface Proposal { draft: string; requiresResolutionText?: boolean; approved?: { text: string; procedureId: string | null } }
 export interface Resolution { text: string; source: "HUMAN" | "AI"; resolvedAt: string; procedureId: string | null }
 
 export interface TicketAgentRepository {
@@ -17,3 +17,4 @@ export interface TicketAgentRepository {
 }
 
 export class ProposalConflictError extends Error {}
+export class ProposalResolutionRequiredError extends Error {}
