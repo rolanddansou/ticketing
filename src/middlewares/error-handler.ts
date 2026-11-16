@@ -1,4 +1,5 @@
 import type { ErrorRequestHandler } from "express";
+import { sendApiError } from "./api-error.js";
 import { ZodError } from "zod";
 import { HttpError } from "../modules/auth/errors.js";
 import { TicketNotFoundError, TicketUserReferenceError } from "../modules/tickets/ticket.repository.js";
@@ -10,21 +11,21 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, nex
   }
 
   if (error instanceof ZodError) {
-    res.status(400).json({ error: { message: "Requête invalide", issues: error.issues.map(issue => ({
-      path: issue.path.join("."), message: issue.message,
-    })) } });
+    sendApiError(res, 400, "Requête invalide", error.issues.map(issue => ({
+      path: issue.path.join("."), message: "Valeur invalide",
+    })));
     return;
   }
   if (error instanceof HttpError) {
-    res.status(error.status).json({ error: { message: error.message } });
+    sendApiError(res, error.status, error.status >= 500 ? "Erreur interne du serveur" : error.message);
     return;
   }
   if (error instanceof TicketNotFoundError) {
-    res.status(404).json({ error: { message: "Ticket introuvable" } });
+    sendApiError(res, 404, "Ticket introuvable");
     return;
   }
   if (error instanceof TicketUserReferenceError) {
-    res.status(422).json({ error: { message: error.message } });
+    sendApiError(res, 422, error.message);
     return;
   }
 
@@ -41,8 +42,7 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _req, res, nex
     const diagnosticCode = typeof error === "object" && error !== null && "code" in error
       && typeof error.code === "string" && /^(P\d{4}|[0-9A-Z]{5}|ECONNREFUSED|ETIMEDOUT|ECONNRESET)$/.test(error.code)
       ? error.code : undefined;
-    const frames = error instanceof Error ? error.stack?.split("\n").filter(line => /^\s+at /.test(line)).slice(0, 10) : undefined;
-    console.error("Erreur HTTP interne", { code: diagnosticCode, stack: frames });
+    console.error("Erreur HTTP interne", { code: diagnosticCode });
   }
-  res.status(code).json({ error: { message } });
+  sendApiError(res, code, message);
 };

@@ -1,3 +1,4 @@
+import { sendApiError } from "../middlewares/api-error.js";
 import type { RequestHandler } from "express";
 
 export function createHealthController(checkDatabase: () => Promise<unknown>): RequestHandler {
@@ -6,7 +7,7 @@ export function createHealthController(checkDatabase: () => Promise<unknown>): R
       await checkDatabase();
       res.status(200).json({ status: "ok" });
     } catch {
-      res.status(503).json({ error: { message: "Base de données indisponible" } });
+      sendApiError(res, 503, "Base de données indisponible");
     }
   };
 }

@@ -98,7 +98,7 @@ test("ticket HTTP routes and error responses", async () => {
     missing = true;
     response = await fetch(`${base}/${id}`);
     assert.equal(response.status, 404);
-    assert.deepEqual(await response.json(), { error: { message: "Ticket introuvable" } });
+    assert.deepEqual(await response.json(), { error: { code: "NOT_FOUND", message: "Ticket introuvable" } });
     failure = new TicketNotFoundError(id);
     response = await fetch(`${base}/${id}`, json("PATCH", { status: "CLOSED", assignedToId: null }));
     assert.equal(response.status, 404);
@@ -114,7 +114,7 @@ test("ticket HTTP routes and error responses", async () => {
     try {
       response = await fetch(`${base}/${id}`);
       assert.equal(response.status, 500);
-      assert.deepEqual(await response.json(), { error: { message: "Erreur interne du serveur" } });
+      assert.deepEqual(await response.json(), { error: { code: "INTERNAL_ERROR", message: "Erreur interne du serveur" } });
       assert.equal(logs.length, 1);
       assert.match(JSON.stringify(logs), /P2022/);
       assert.doesNotMatch(JSON.stringify(logs), /secret database credentials/);

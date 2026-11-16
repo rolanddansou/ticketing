@@ -1,4 +1,5 @@
 import express from "express";
+import { sendApiError } from "./middlewares/api-error.js";
 
 import { errorHandler } from "./middlewares/error-handler.js";
 import { healthRouter } from "./routes/health.js";
@@ -33,6 +34,6 @@ app.use("/auth", createAuthRouter(authService, browserConfig, invitations, recov
 app.use("/users", createUsersRouter(authService, new AdminService(new PrismaAdminRepository(prisma), new Argon2PasswordHasher()), userRepository, invitations));
 app.use("/tickets", createTicketsRouter(ticketRepository, authenticate(authService)));
 app.use((_req, res) => {
-  res.status(404).json({ error: { message: "Route introuvable" } });
+  sendApiError(res, 404, "Route introuvable");
 });
 app.use(errorHandler);
