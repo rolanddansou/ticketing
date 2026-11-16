@@ -35,7 +35,7 @@ test("ticket HTTP routes and error responses", async () => {
     async get(ticketId) { check(); assert.equal(ticketId, id); return missing ? null : ticket; },
     async listing(input) {
       check();
-      assert.deepEqual(input, { page: 2, limit: 5, status: "OPEN", priority: "HIGH", createdById: userId, assignedToId: userId, resolveById: userId });
+      assert.deepEqual(input, { page: 2, limit: 5, sortBy: "createdAt", sortOrder: "desc", status: "OPEN", priority: "HIGH", createdById: userId, assignedToId: userId, resolveById: userId });
       return { items: [ticket], total: 6, page: 2, limit: 5 };
     },
   };

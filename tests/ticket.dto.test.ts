@@ -27,11 +27,11 @@ test("update is partial, supports null and rejects empty or unknown changes", ()
 });
 
 test("listing defaults, integer strings and filters", () => {
-  assert.deepEqual(listTicketsSchema.parse({}), { page: 1, limit: 20 });
+  assert.deepEqual(listTicketsSchema.parse({}), { page: 1, limit: 20, sortBy: "createdAt", sortOrder: "desc" });
   assert.deepEqual(listTicketsSchema.parse({ page: "2", limit: "100", status: "CLOSED", priority: "HIGH" }), {
-    page: 2, limit: 100, status: "CLOSED", priority: "HIGH",
+    page: 2, limit: 100, sortBy: "createdAt", sortOrder: "desc", status: "CLOSED", priority: "HIGH",
   });
-  for (const input of [{ page: 0 }, { page: 1.5 }, { page: "" }, { page: true }, { limit: 101 }, { limit: null }, { page: "1e2" }, { status: "bad" }, { other: 1 }, { page: Number.MAX_SAFE_INTEGER, limit: 100 }]) {
+  for (const input of [{ sortBy: "description" }, { sortOrder: "random" }, { page: 0 }, { page: 1.5 }, { page: "" }, { page: true }, { limit: 101 }, { limit: null }, { page: "1e2" }, { status: "bad" }, { other: 1 }, { page: Number.MAX_SAFE_INTEGER, limit: 100 }]) {
     assert.equal(listTicketsSchema.safeParse(input).success, false);
   }
 });

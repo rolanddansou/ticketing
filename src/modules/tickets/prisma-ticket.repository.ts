@@ -56,7 +56,7 @@ export class PrismaTicketRepository implements TicketRepository {
   }
 
   async listing(input: ListTicketsDto, scope?: TicketScope): Promise<TicketListingDto> {
-    const { page, limit, status, priority, createdById, assignedToId, resolveById } = listTicketsSchema.parse(input);
+    const { page, limit, status, priority, createdById, assignedToId, resolveById, sortBy, sortOrder } = listTicketsSchema.parse(input);
     const where = { status, priority, createdById, assignedToId, resolveById, AND: scope ? { createdById: scope.createdById } : undefined };
     const [total, items] = await this.client.$transaction([
       this.client.ticket.count({ where }),
@@ -64,7 +64,7 @@ export class PrismaTicketRepository implements TicketRepository {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        orderBy: [{ [sortBy]: sortOrder }, { id: "desc" }],
       }),
     ], { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     return { items: items.map(toDto), total, page, limit };

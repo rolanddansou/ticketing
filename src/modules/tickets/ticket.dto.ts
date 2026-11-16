@@ -39,6 +39,8 @@ const positiveInteger = z.union([
 ]).pipe(z.number().int().positive().max(Number.MAX_SAFE_INTEGER));
 
 export const listTicketsSchema = z.strictObject({
+  sortBy: z.enum(["createdAt", "updatedAt", "title", "status", "priority"]).default("createdAt"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
   createdById: z.uuid().optional(),
   assignedToId: z.uuid().optional(),
   resolveById: z.uuid().optional(),
