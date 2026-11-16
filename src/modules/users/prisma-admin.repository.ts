@@ -51,7 +51,21 @@ export class PrismaAdminRepository implements AdminRepository {
         }
         if (input.email && input.email !== current.email || input.role && input.role !== current.role || enabled === false) await revokeSecurity(tx, id);
         if (input.email && input.email !== current.email || enabled === false) await invalidateLinks(tx, id);
-        return publicUser(await tx.user.update({ where: { id }, data: { ...input, status } }));
+        const updated = await tx.user.update({ where: { id }, data: { ...input, status } });
+        if (updated.role !== current.role) {
+          await tx.auditEvent.create({ data: {
+            actorId, targetId: id, action: "ROLE_CHANGED",
+            metadata: { previousRole: current.role, newRole: updated.role },
+          } });
+        }
+        if (updated.status !== current.status) {
+          await tx.auditEvent.create({ data: {
+            actorId, targetId: id,
+            action: updated.status === "DISABLED" ? "ACCOUNT_DISABLED" : "ACCOUNT_REACTIVATED",
+            metadata: { previousStatus: current.status, newStatus: updated.status },
+          } });
+        }
+        return publicUser(updated);
       });
     } catch (error) { mapError(error); }
   }

@@ -27,6 +27,23 @@ enum UserRole {
   USER
 }
 
+enum AuditAction {
+  ROLE_CHANGED
+  ACCOUNT_DISABLED
+  ACCOUNT_REACTIVATED
+}
+
+model AuditEvent {
+  id        String      @id @default(uuid()) @db.Uuid
+  timestamp DateTime    @default(now())
+  actorId   String      @db.Uuid
+  targetId  String      @db.Uuid
+  action    AuditAction
+  metadata  Json
+
+  @@index([targetId, timestamp])
+}
+
 enum UserStatus {
   INVITED
   ACTIVE

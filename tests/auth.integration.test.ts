@@ -163,6 +163,16 @@ test("admin management revokes sessions and preserves the last active admin conc
   await admin.setEnabled(first.id, employee.id, false);
   await assert.rejects(auth.login(employee.email, password));
   await admin.setEnabled(first.id, employee.id, true);
+  await admin.setEnabled(first.id, employee.id, true);
+  const events = await db.prisma.auditEvent.findMany({ where: { targetId: employee.id } });
+  assert.equal(events.length, 3);
+  assert.ok(events.every(event => event.actorId === first.id));
+  const metadata = Object.fromEntries(events.map(event => [event.action, event.metadata]));
+  assert.deepEqual(metadata, {
+    ROLE_CHANGED: { previousRole: "USER", newRole: "AGENT" },
+    ACCOUNT_DISABLED: { previousStatus: "ACTIVE", newStatus: "DISABLED" },
+    ACCOUNT_REACTIVATED: { previousStatus: "DISABLED", newStatus: "ACTIVE" },
+  });
   await auth.login(employee.email, password);
   const app = express(); app.use(express.json()); app.use("/users", createUsersRouter(auth, admin, new PrismaUserRepository(db.prisma))); app.use(errorHandler);
   const server = app.listen(0, "127.0.0.1"); await new Promise<void>(resolve => server.once("listening", resolve));
