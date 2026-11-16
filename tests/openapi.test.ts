@@ -1,9 +1,24 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { runInNewContext } from "node:vm";
 import SwaggerParser from "@apidevtools/swagger-parser";
 import express from "express";
-import { createDocsRouter } from "../src/routes/docs.js";
+import { createDocsRouter, readOnlyOperations } from "../src/routes/docs.js";
+
+test("Swagger keeps CSRF operations read-only", () => {
+  const document = JSON.parse(readFileSync("openapi.json", "utf8"));
+  const allow = readOnlyOperations().statePlugins.spec.wrapSelectors.allowTryItOutFor(() => true, {
+    specSelectors: { specJson: () => ({
+      getIn: ([section, path, method, key]) => document[section]?.[path]?.[method]?.[key],
+    }) },
+  });
+  for (const path of ["/auth/refresh", "/auth/logout", "/auth/logout-all"]) {
+    assert.equal(allow(path, "post"), false);
+    assert.match(document.paths[path].post.description, /client HTTP hors navigateur/);
+  }
+  assert.equal(allow("/auth/login", "post"), true);
+});
 
 test("OpenAPI 3.1 describes the routes registered by the API", async () => {
   const document = await SwaggerParser.validate("openapi.json");
@@ -42,6 +57,22 @@ for (const production of [false, true]) {
       assert.equal(docs.status, 200);
       assert.match(await docs.text(), /Swagger UI/);
       const setup = await (await fetch(`${base}/docs/swagger-ui-init.js`)).text();
+      assert.match(setup, /allowTryItOutFor/);
+      let initialized = false;
+      const window = { location: { search: "", origin: base }, onload: () => {} };
+      const swaggerUI = Object.assign((options: { plugins: (typeof readOnlyOperations)[] }) => {
+        const selector = options.plugins[0]().statePlugins.spec.wrapSelectors.allowTryItOutFor;
+        const allow = selector(() => true, {
+          specSelectors: { specJson: () => ({ getIn: keys => keys[1] === "/auth/refresh" }) },
+        });
+        assert.equal(allow("/auth/refresh", "post"), false);
+        assert.equal(allow("/auth/login", "post"), true);
+        initialized = true;
+        return {};
+      }, { presets: { apis: {} }, plugins: { DownloadUrl: {} } });
+      runInNewContext(setup, { window, SwaggerUIBundle: swaggerUI, SwaggerUIStandalonePreset: {} });
+      window.onload();
+      assert.equal(initialized, true);
       assert.match(setup, production ? /"supportedSubmitMethods":\s*\[\s*\]/ : /"supportedSubmitMethods":\s*\[\s*"get"/);
     } finally {
       server.closeAllConnections();

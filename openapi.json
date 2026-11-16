@@ -204,6 +204,8 @@
     },
     "/auth/refresh": {
       "post": {
+        "x-swagger-ui-read-only": true,
+        "description": "À tester depuis le frontend configuré ou un client HTTP hors navigateur. Swagger ne peut pas renseigner l’origine attendue par le contrôle CSRF.",
         "tags": [
           "Auth"
         ],
@@ -357,11 +359,12 @@
     },
     "/auth/logout": {
       "post": {
+        "x-swagger-ui-read-only": true,
+        "description": "À tester depuis le frontend configuré ou un client HTTP hors navigateur. Swagger ne peut pas renseigner l’origine attendue par le contrôle CSRF.",
         "tags": [
           "Auth"
         ],
         "summary": "Déconnecter la session courante",
-        "description": "Le cookie refresh_token identifie la session s’il est présent.",
         "security": [],
         "parameters": [
           {
@@ -468,6 +471,8 @@
     },
     "/auth/logout-all": {
       "post": {
+        "x-swagger-ui-read-only": true,
+        "description": "À tester depuis le frontend configuré ou un client HTTP hors navigateur. Swagger ne peut pas renseigner l’origine attendue par le contrôle CSRF.",
         "tags": [
           "Auth"
         ],

@@ -6,6 +6,9 @@ chaque push et pull request, avec Node 24 et une instance PostgreSQL 18 dédiée
 Le contrat OpenAPI est disponible sur `GET /openapi.json` et Swagger UI sur
 `/docs` dans tous les environnements. En production, l’interface désactive
 l’envoi de requêtes depuis Swagger. `npm run test:openapi` valide le contrat.
+Pour tester `/auth/refresh`, `/auth/logout` et `/auth/logout-all`, utilise le
+frontend configuré ou un client HTTP comme Postman. Ces routes exigent
+l’origine de `FRONTEND_URL` et l’en-tête `X-CSRF-Protection: 1`.
 
 Les fonctionnalités d'authentification sont documentées dans [AUTH.md](AUTH.md).
 
