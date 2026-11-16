@@ -5,14 +5,16 @@ import type { UserRepository } from "../modules/users/user.repository.js";
 import type { InvitationService } from "../modules/auth/invitation.service.js";
 import { authenticate, requireRoles } from "../middlewares/authenticate.js";
 import { createUsersController } from "../controllers/users.controller.js";
+import { invitationRateLimit } from "../middlewares/rate-limit.js";
 
 export function createUsersRouter(auth: AuthService, admin: AdminService, users: UserRepository, invitations?: InvitationService): Router {
   const router = Router();
   const controller = createUsersController(admin, users, invitations);
 
   router.use(authenticate(auth), requireRoles("SUPER_ADMIN", "ADMIN"));
-  if (controller.invite) router.post("/invitations", controller.invite);
-  if (controller.resendInvitation) router.post("/:id/resend-invitation", controller.resendInvitation);
+  const limitInvitations = invitationRateLimit();
+  if (controller.invite) router.post("/invitations", limitInvitations, controller.invite);
+  if (controller.resendInvitation) router.post("/:id/resend-invitation", limitInvitations, controller.resendInvitation);
   router.post("/", controller.create);
   router.get("/", controller.listing);
   router.get("/:id", controller.get);

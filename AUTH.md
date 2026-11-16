@@ -1,5 +1,10 @@
 # Authentification
 
+Le plafond global est de 300 requêtes par minute par IP. GET/HEAD /health et
+OPTIONS sont exemptés. Invitations et renvois partagent 30 demandes par
+15 minutes par compte administrateur. Une réponse 429 fournit `Retry-After`.
+Les compteurs sont en mémoire, propres à chaque instance de l’API.
+
 ## Démarrage
 
 1. Utiliser Node.js 24 et `npm ci`.

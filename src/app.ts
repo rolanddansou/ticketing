@@ -1,5 +1,6 @@
 import express from "express";
 import { sendApiError } from "./middlewares/api-error.js";
+import { globalRateLimit } from "./middlewares/rate-limit.js";
 
 import { errorHandler } from "./middlewares/error-handler.js";
 import { healthRouter } from "./routes/health.js";
@@ -26,6 +27,7 @@ export const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", authConfig.TRUST_PROXY_HOPS || false);
 app.use(cors(browserConfig));
+app.use(globalRateLimit());
 app.use(express.json({ limit: "1mb" }));
 app.use(healthRouter);
 const invitations = new InvitationService(new PrismaActionRepository(prisma), new Argon2PasswordHasher(), emailEncryption, authConfig.FRONTEND_URL);
