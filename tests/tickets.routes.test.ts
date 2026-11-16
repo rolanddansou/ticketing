@@ -88,7 +88,9 @@ test("ticket HTTP routes and error responses", async () => {
     ] as const) {
       response = await fetch(url, options);
       assert.equal(response.status, 400, url);
-      assert.equal((await response.json()).error.message, "Requête invalide");
+      const body = await response.json();
+      assert.equal(body.error.code, "BAD_REQUEST");
+      assert.equal(body.error.message, "Requête invalide");
     }
     assert.equal(calls, beforeInvalid);
     response = await fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{" });

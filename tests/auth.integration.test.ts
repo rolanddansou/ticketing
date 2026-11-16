@@ -173,6 +173,18 @@ test("admin management revokes sessions and preserves the last active admin conc
     ACCOUNT_DISABLED: { previousStatus: "ACTIVE", newStatus: "DISABLED" },
     ACCOUNT_REACTIVATED: { previousStatus: "DISABLED", newStatus: "ACTIVE" },
   });
+  await assert.rejects(admin.setEnabled(employee.id, employee.id, false));
+  assert.equal(await db.prisma.auditEvent.count({ where: { targetId: employee.id } }), 3);
+  // Reject the audit write at the database and verify the account update rolls back.
+  await db.pool.query(`ALTER TABLE "${db.schema}"."AuditEvent" ADD CONSTRAINT "test_reject_audit" CHECK (false) NOT VALID`);
+  try {
+    await assert.rejects(admin.setEnabled(first.id, employee.id, false));
+    const account = await db.prisma.user.findUniqueOrThrow({ where: { id: employee.id } });
+    assert.equal(account.status, "ACTIVE");
+    assert.equal(await db.prisma.auditEvent.count({ where: { targetId: employee.id } }), 3);
+  } finally {
+    await db.pool.query(`ALTER TABLE "${db.schema}"."AuditEvent" DROP CONSTRAINT "test_reject_audit"`);
+  }
   await auth.login(employee.email, password);
   const app = express(); app.use(express.json()); app.use("/users", createUsersRouter(auth, admin, new PrismaUserRepository(db.prisma))); app.use(errorHandler);
   const server = app.listen(0, "127.0.0.1"); await new Promise<void>(resolve => server.once("listening", resolve));

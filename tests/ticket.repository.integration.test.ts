@@ -190,6 +190,8 @@ test("repository lifecycle, validation, filters and pagination", async () => {
   const timestamp = new Date("2026-01-01T00:00:00Z");
   await prisma.ticket.updateMany({ where: { id: { in: [second.id, third.id] } }, data: { createdAt: timestamp } });
   const ids = [second.id, third.id].sort().reverse();
+  const sorted = await repo.listing({ sortBy: "title", sortOrder: "asc", status: "CLOSED", priority: "HIGH" });
+  assert.deepEqual(sorted.items.map(ticket => ticket.id), [second.id, third.id]);
   const page1 = await repo.listing({ page: "1", limit: "1", status: "CLOSED", priority: "HIGH" });
   assert.equal(page1.total, 2);
   assert.equal(page1.page, 1);
