@@ -1,6 +1,7 @@
 import { Router, type RequestHandler } from "express";
 import type { TicketRepository } from "../modules/tickets/ticket.repository.js";
 import { requireRoles } from "../middlewares/authenticate.js";
+import { ticketCreationRateLimit } from "../middlewares/rate-limit.js";
 import { createTicketsController } from "../controllers/tickets.controller.js";
 import { createTicketProposalController } from "../controllers/ticket-proposal.controller.js";
 import type { TicketAgentRepository } from "../modules/ticket-agent-ia/repository.js";
@@ -11,7 +12,7 @@ export function createTicketsRouter(repository: TicketRepository, authentication
   const controller = createTicketsController(repository, waitForResult);
 
   router.use(authentication);
-  router.post("/", requireRoles("SUPER_ADMIN", "ADMIN", "AGENT", "USER"), controller.create);
+  router.post("/", requireRoles("SUPER_ADMIN", "ADMIN", "AGENT", "USER"), ticketCreationRateLimit(), controller.create);
   router.patch("/:id", requireRoles("SUPER_ADMIN", "ADMIN", "AGENT"), controller.update);
   router.get("/", controller.listing);
   router.get("/:id", controller.get);

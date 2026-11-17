@@ -10,5 +10,6 @@ const config = z.object({
 const result = config.safeParse(process.env);
 if (!result.success) throw new Error(`Configuration auth invalide : ${result.error.issues.map(issue => issue.path.join(".")).join(", ")}`);
 export const authConfig = result.data;
-if (process.env.NODE_ENV === "production" && !authConfig.FRONTEND_URL.startsWith("https://")) throw new Error("FRONTEND_URL doit utiliser HTTPS en production");
-export const browserConfig = { origin: new URL(authConfig.FRONTEND_URL).origin, secure: process.env.NODE_ENV === "production" };
+// Fail closed: only an explicit "development"/"test" relaxes these checks, never a missing or unexpected value.
+if (process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test" && !authConfig.FRONTEND_URL.startsWith("https://")) throw new Error("FRONTEND_URL doit utiliser HTTPS en production");
+export const browserConfig = { origin: new URL(authConfig.FRONTEND_URL).origin, secure: !["development", "test"].includes(process.env.NODE_ENV ?? "") };

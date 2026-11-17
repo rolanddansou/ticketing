@@ -9,6 +9,9 @@ const answerSchema = z.strictObject({
   canResolve: z.boolean().optional(),
 });
 
+// Bound the input BEFORE running the regexes: they are quadratic on long separator-rich text.
+const MAX_DESCRIPTION_CHARS = 4000;
+
 function redact(text: string): string {
   return text
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[EMAIL]")
@@ -41,7 +44,7 @@ export class TicketAgentIa {
           ? "Ajoute canResolve: boolean et laisse procedureId à null. Mets canResolve à true uniquement si ta réponse résout toute la demande à elle seule, sans information, action externe ou vérification manquante. "
           : "")
         + "Procédures admissibles : " + JSON.stringify(candidates.map(({ id, resolutionText }) => ({ id, resolutionText }))).slice(0, 12000),
-      user: JSON.stringify({ title: redact(ticket.title), description: redact(ticket.description ?? "").slice(0, 4000) }),
+      user: JSON.stringify({ title: redact(ticket.title), description: redact((ticket.description ?? "").slice(0, MAX_DESCRIPTION_CHARS)) }),
     }, answerSchema);
     if (result.data.scope === "OUT_OF_SCOPE") {
       return { requiresResolutionText: true, draft: "Cette demande sort du périmètre du support informatique. À orienter vers le service compétent." };

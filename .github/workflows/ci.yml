@@ -8,6 +8,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # VULN-004 fix: NODE_ENV has no default anymore, CI must set it explicitly.
+      NODE_ENV: test
     services:
       postgres:
         image: postgres:18

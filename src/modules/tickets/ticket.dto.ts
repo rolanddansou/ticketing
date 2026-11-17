@@ -7,7 +7,7 @@ export const ticketIdSchema = z.uuid();
 
 const fields = {
   title: z.string().trim().min(1).max(200),
-  description: z.string().nullable(),
+  description: z.string().max(10_000).nullable(),
   status: ticketStatusSchema,
   priority: ticketPrioritySchema,
 };

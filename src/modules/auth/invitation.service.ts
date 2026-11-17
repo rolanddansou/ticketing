@@ -5,6 +5,7 @@ import { passwordPairSchema } from "./auth.dto.js";
 import { tokenHash, newToken } from "./auth.service.js";
 import type { InvitationRepository, ActionDelivery } from "./action.repository.js";
 import { EmailEncryption } from "../email/encryption.js";
+import { HttpError } from "./errors.js";
 
 export const actionPasswordSchema = z.strictObject({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/), ...passwordPairSchema.shape })
   .refine(input => input.password === input.confirmPassword, { path: ["confirmPassword"], message: "Les mots de passe ne correspondent pas" });
@@ -30,6 +31,9 @@ export class InvitationService {
   }
   async accept(input: unknown): Promise<void> {
     const { token, password } = actionPasswordSchema.parse(input);
-    await this.repository.acceptInvitation(tokenHash(token), await this.hasher.hash(password));
+    const hash = tokenHash(token);
+    // Reject an obviously invalid token before paying for the Argon2 hash (VULN-006.2).
+    if (!await this.repository.isInvitationTokenValid(hash)) throw new HttpError(400, "Lien invalide ou expiré");
+    await this.repository.acceptInvitation(hash, await this.hasher.hash(password));
   }
 }

@@ -4,7 +4,7 @@ import type { InvitationService } from "../modules/auth/invitation.service.js";
 import type { PasswordRecoveryService } from "../modules/auth/password-recovery.service.js";
 import { authenticate } from "../middlewares/authenticate.js";
 import { csrf, defaultBrowser, type BrowserConfig } from "../middlewares/browser-security.js";
-import { limitRequests } from "../middlewares/rate-limit.js";
+import { limitRequests, loginAccountRateLimit } from "../middlewares/rate-limit.js";
 import { noStore } from "../middlewares/no-store.js";
 import { createAuthController } from "../controllers/auth.controller.js";
 
@@ -13,7 +13,7 @@ export function createAuthRouter(service: AuthService, browser: BrowserConfig = 
   const controller = createAuthController(service, browser, invitations, recovery);
 
   router.use(noStore);
-  router.post("/login", limitRequests(10, 60_000), controller.login);
+  router.post("/login", limitRequests(10, 60_000), loginAccountRateLimit(), controller.login);
   router.post("/refresh", csrf(browser), limitRequests(60, 60_000), controller.refresh);
   router.post("/logout", csrf(browser), controller.logout);
   router.post("/logout-all", csrf(browser), authenticate(service), controller.logoutAll);

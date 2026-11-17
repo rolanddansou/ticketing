@@ -28,3 +28,11 @@ export const cors = (config: BrowserConfig): RequestHandler => (req, res, next) 
   if (req.method === "OPTIONS") { res.sendStatus(204); return; }
   next();
 };
+
+export const securityHeaders = (production: boolean): RequestHandler => (_req, res, next) => {
+  res.set("X-Content-Type-Options", "nosniff");
+  res.set("X-Frame-Options", "DENY");
+  res.set("Referrer-Policy", "no-referrer");
+  if (production) res.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  next();
+};

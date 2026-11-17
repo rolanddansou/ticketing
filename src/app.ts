@@ -12,7 +12,7 @@ import { ticketRepository } from "./modules/tickets/index.js";
 import { authService } from "./modules/auth/index.js";
 import { createAuthRouter } from "./routes/auth.js";
 import { browserConfig, authConfig } from "./config/auth.js";
-import { cors } from "./middlewares/browser-security.js";
+import { cors, securityHeaders } from "./middlewares/browser-security.js";
 import { createUsersRouter } from "./routes/users.js";
 import { AdminService } from "./modules/users/admin.service.js";
 import { PrismaAdminRepository } from "./modules/users/prisma-admin.repository.js";
@@ -29,6 +29,7 @@ export const app = express();
 
 app.disable("x-powered-by");
 app.set("trust proxy", authConfig.TRUST_PROXY_HOPS || false);
+app.use(securityHeaders(env.NODE_ENV === "production"));
 app.use(cors(browserConfig));
 app.use(globalRateLimit());
 app.use(express.json({ limit: "1mb" }));

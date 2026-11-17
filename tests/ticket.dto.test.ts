@@ -51,3 +51,9 @@ test("ticket user references are validated and creator is immutable", () => {
   assert.equal(updateTicketSchema.safeParse({ createdById }).success, false);
   assert.deepEqual(updateTicketSchema.parse({ assignedToId: null, resolveById: createdById }), { assignedToId: null, resolveById: createdById });
 });
+
+test("description is bounded", () => {
+  assert.ok(createTicketSchema.safeParse({ title: "t", description: "a".repeat(10_000) }).success);
+  assert.equal(createTicketSchema.safeParse({ title: "t", description: "a".repeat(10_001) }).success, false);
+  assert.equal(updateTicketSchema.safeParse({ description: "a".repeat(10_001) }).success, false);
+});

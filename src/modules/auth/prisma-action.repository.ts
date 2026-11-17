@@ -51,6 +51,16 @@ export class PrismaActionRepository implements InvitationRepository, PasswordRec
       await enqueueAction(tx, user.id, "PASSWORD_RESET", createDelivery(user.email));
     });
   }
+  isInvitationTokenValid(hash: string): Promise<boolean> { return this.isTokenValid(hash, "INVITATION"); }
+  isResetTokenValid(hash: string): Promise<boolean> { return this.isTokenValid(hash, "PASSWORD_RESET"); }
+  // Point-in-time, non-transactional check: lets the caller skip an expensive Argon2 hash for an
+  // obviously invalid token. It never replaces the authoritative check inside consume(), which still
+  // re-verifies everything under a lock to close the race window.
+  private async isTokenValid(hash: string, type: "INVITATION" | "PASSWORD_RESET"): Promise<boolean> {
+    const token = await this.client.actionToken.findUnique({ where: { hash }, include: { user: true } });
+    return !!token && token.type === type && !token.consumedAt && token.expiresAt > new Date()
+      && token.user.status === (type === "INVITATION" ? "INVITED" : "ACTIVE");
+  }
   acceptInvitation(hash: string, passwordHash: string): Promise<void> { return this.consume(hash, passwordHash, "INVITATION"); }
   resetPassword(hash: string, passwordHash: string): Promise<void> { return this.consume(hash, passwordHash, "PASSWORD_RESET"); }
   private async consume(hash: string, passwordHash: string, type: "INVITATION" | "PASSWORD_RESET"): Promise<void> {

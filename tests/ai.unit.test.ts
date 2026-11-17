@@ -107,3 +107,14 @@ test("Chat providers translate HTTP errors and validate successful responses", a
     await assert.rejects(new AiService({ openai: provider }, "openai").generateText(input), { code, message: code });
   }
 });
+
+test("agent bounds the description before redaction (ReDoS regression)", async () => {
+  const { TicketAgentIa } = await import("../src/modules/ticket-agent-ia/agent.js");
+  const ai = { async generateJson(input: { user: string }, schema: z.ZodType) {
+    assert.ok(JSON.parse(input.user).description.length <= 4000);
+    return { data: schema.parse({ scope: "IT", draft: "ok", procedureId: null }), provider: "openai" as const, model: "x" };
+  } };
+  const started = performance.now();
+  await new TicketAgentIa(ai as never, [], false).analyze({ title: "Imprimante", description: "a.".repeat(500_000) });
+  assert.ok(performance.now() - started < 500);
+});
